@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
     Music,
     Sparkles,
@@ -10,6 +11,8 @@ import {
     ArrowRight,
     Play,
 } from "lucide-react";
+
+import Logo from "@/logo.png";
 
 export default function Home() {
     const handleSpotifyLogin = () => {
@@ -54,11 +57,11 @@ export default function Home() {
                     <div className="max-w-6xl w-full mx-auto">
                         <div className="text-center space-y-8 animate-fade-in">
                             {/* Logo */}
-                            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-[#1DB954] mb-4">
-                                <Music
-                                    className="w-10 h-10 text-black"
-                                    strokeWidth={2.5}
-                                />
+                            <div className="inline-flex items-center justify-center gap-2 mb-4">
+                                <Music className="w-8 h-8 text-[#1DB954] mr-2" />
+                                <span className="text-3xl font-bold">
+                                    ReflectM
+                                </span>
                             </div>
 
                             {/* Headline */}
