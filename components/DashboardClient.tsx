@@ -189,19 +189,19 @@ export function DashboardClient({
                 energy={result?.energy || 0.5}
             />
 
-            <div className="min-h-screen bg-black p-4 md:p-8">
+            <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 p-4 md:p-8">
                 <div className="max-w-6xl mx-auto">
-                    {/* Header */}
-                    <div className="flex justify-between items-center mb-8">
+                    {/* Header with enhanced contrast */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 p-6 bg-gradient-to-br from-zinc-900/80 to-black/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl shadow-2xl">
                         <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 rounded-2xl bg-[#1DB954] flex items-center justify-center">
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1DB954] to-[#1ed760] flex items-center justify-center shadow-lg shadow-green-500/30">
                                 <Music className="w-8 h-8 text-black" />
                             </div>
                             <div>
-                                <h1 className="text-3xl md:text-4xl font-bold text-white">
+                                <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
                                     ReflectM
                                 </h1>
-                                <p className="text-gray-400 text-sm">
+                                <p className="text-gray-300 text-sm font-medium">
                                     AI-Powered Playlist Generator
                                 </p>
                             </div>
@@ -209,7 +209,7 @@ export function DashboardClient({
                         <Button
                             onClick={handleLogout}
                             variant="outline"
-                            className="text-white hover:bg-[#1DB954] hover:text-black border-gray-700 hover:border-[#1DB954] transition-all"
+                            className="text-white bg-zinc-900/50 hover:bg-[#1DB954] hover:text-black border-zinc-700 hover:border-[#1DB954] transition-all shadow-lg hover:shadow-green-500/30 font-medium"
                         >
                             <LogOut className="w-4 h-4 mr-2" />
                             Logout
@@ -217,17 +217,17 @@ export function DashboardClient({
                     </div>
 
                     <Tabs defaultValue="generate" className="space-y-6">
-                        <TabsList className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border border-white/20 p-1.5">
+                        <TabsList className="bg-gradient-to-br from-zinc-900/90 to-black/70 backdrop-blur-2xl border border-zinc-700/50 p-1.5 shadow-xl">
                             <TabsTrigger
                                 value="generate"
-                                className="data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-600/10 data-[state=active]:border data-[state=active]:border-green-500/30 data-[state=active]:shadow-lg"
+                                className="text-gray-300 data-[state=active]:text-white data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-600/40 data-[state=active]:to-emerald-600/30 data-[state=active]:border data-[state=active]:border-green-500/50 data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 font-medium"
                             >
                                 <Sparkles className="w-4 h-4 mr-2" />
                                 Generate
                             </TabsTrigger>
                             <TabsTrigger
                                 value="history"
-                                className="data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-violet-600/10 data-[state=active]:border data-[state=active]:border-purple-500/30 data-[state=active]:shadow-lg"
+                                className="text-gray-300 data-[state=active]:text-white data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-600/40 data-[state=active]:to-violet-600/30 data-[state=active]:border data-[state=active]:border-purple-500/50 data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 font-medium"
                                 onClick={loadReflections}
                             >
                                 <History className="w-4 h-4 mr-2" />
@@ -235,7 +235,7 @@ export function DashboardClient({
                             </TabsTrigger>
                             <TabsTrigger
                                 value="personality"
-                                className="data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-600/10 data-[state=active]:border data-[state=active]:border-blue-500/30 data-[state=active]:shadow-lg"
+                                className="text-gray-300 data-[state=active]:text-white data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-600/40 data-[state=active]:to-cyan-600/30 data-[state=active]:border data-[state=active]:border-blue-500/50 data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 font-medium"
                                 onClick={loadTopTracks}
                             >
                                 <TrendingUp className="w-4 h-4 mr-2" />
@@ -246,16 +246,16 @@ export function DashboardClient({
                         <TabsContent value="generate" className="space-y-6">
                             {/* Main Input Card - Enhanced Glassmorphism */}
                             <div className="relative group">
-                                <div className="absolute -inset-1 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-600/20 rounded-[1.5rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                <Card className="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]">
+                                <div className="absolute -inset-1 bg-gradient-to-r from-green-500/30 via-emerald-500/30 to-green-600/30 rounded-[1.5rem] blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                <Card className="relative bg-gradient-to-br from-zinc-900/95 to-black/90 backdrop-blur-2xl border-zinc-700/70 shadow-[0_8px_32px_0_rgba(0,0,0,0.6)]">
                                     <CardHeader>
-                                        <CardTitle className="text-white text-2xl flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-600/10 flex items-center justify-center border border-green-500/20">
-                                                <Sparkles className="w-5 h-5 text-green-400" />
+                                        <CardTitle className="text-white text-2xl flex items-center gap-3 font-semibold">
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-600/40 to-emerald-600/30 flex items-center justify-center border border-green-500/50 shadow-lg shadow-green-500/20">
+                                                <Sparkles className="w-5 h-5 text-green-300" />
                                             </div>
                                             Describe Your Mood
                                         </CardTitle>
-                                        <CardDescription className="text-white/70 ml-13">
+                                        <CardDescription className="text-gray-300 ml-13 text-base">
                                             Tell me how you're feeling, and I'll
                                             create the perfect soundtrack
                                         </CardDescription>
@@ -267,13 +267,13 @@ export function DashboardClient({
                                             onChange={(e) =>
                                                 setPrompt(e.target.value)
                                             }
-                                            className="min-h-[120px] bg-white/[0.05] backdrop-blur-sm border-white/20 text-white placeholder:text-white/40 focus:border-green-500/50 focus:bg-white/[0.08] transition-all resize-none"
+                                            className="min-h-[120px] bg-zinc-900/60 backdrop-blur-sm border-zinc-700/60 text-white placeholder:text-gray-400 focus:border-green-500/70 focus:bg-zinc-900/80 transition-all resize-none shadow-inner"
                                         />
 
-                                        {/* Controls with glass pills */}
+                                        {/* Controls with enhanced toggle buttons */}
                                         <div className="flex flex-wrap gap-4 items-center justify-between">
                                             <div className="flex items-center gap-4">
-                                                <div className="flex items-center space-x-3 px-4 py-2.5 bg-white/[0.05] backdrop-blur-sm border border-white/10 rounded-full hover:bg-white/[0.08] transition-all">
+                                                <div className="group flex items-center space-x-3 px-5 py-3 bg-gradient-to-br from-zinc-900/90 to-zinc-800/90 backdrop-blur-sm border-2 border-zinc-700/60 rounded-xl hover:border-green-500/50 hover:shadow-lg hover:shadow-green-500/20 transition-all duration-300">
                                                     <Switch
                                                         id="discovery"
                                                         checked={discoveryMode}
@@ -283,15 +283,20 @@ export function DashboardClient({
                                                     />
                                                     <label
                                                         htmlFor="discovery"
-                                                        className="text-white text-sm font-medium cursor-pointer"
+                                                        className="text-gray-100 text-sm font-semibold cursor-pointer select-none flex items-center gap-2 group-hover:text-white transition-colors"
                                                     >
+                                                        <span className="text-lg">
+                                                            {discoveryMode
+                                                                ? "🔍"
+                                                                : "💚"}
+                                                        </span>
                                                         {discoveryMode
-                                                            ? "🔍 Discovery Mode"
-                                                            : "💚 Comfort Zone"}
+                                                            ? "Discovery Mode"
+                                                            : "Comfort Zone"}
                                                     </label>
                                                 </div>
 
-                                                <div className="flex items-center space-x-3 px-4 py-2.5 bg-white/[0.05] backdrop-blur-sm border border-white/10 rounded-full hover:bg-white/[0.08] transition-all">
+                                                <div className="group flex items-center space-x-3 px-5 py-3 bg-gradient-to-br from-zinc-900/90 to-zinc-800/90 backdrop-blur-sm border-2 border-zinc-700/60 rounded-xl hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300">
                                                     <Switch
                                                         id="weather"
                                                         checked={weatherSync}
@@ -301,9 +306,12 @@ export function DashboardClient({
                                                     />
                                                     <label
                                                         htmlFor="weather"
-                                                        className="text-white text-sm font-medium cursor-pointer"
+                                                        className="text-gray-100 text-sm font-semibold cursor-pointer select-none flex items-center gap-2 group-hover:text-white transition-colors"
                                                     >
-                                                        🌤️ Weather Sync
+                                                        <span className="text-lg">
+                                                            🌤️
+                                                        </span>
+                                                        Weather Sync
                                                     </label>
                                                 </div>
                                             </div>
@@ -369,26 +377,26 @@ export function DashboardClient({
                             {/* Result */}
                             {result && !loading && (
                                 <div className="relative group">
-                                    <div className="absolute -inset-1 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-green-600/20 rounded-[1.5rem] blur-2xl opacity-75"></div>
-                                    <Card className="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20 overflow-hidden">
+                                    <div className="absolute -inset-1 bg-gradient-to-r from-green-500/30 via-emerald-500/30 to-green-600/30 rounded-[1.5rem] blur-2xl opacity-75"></div>
+                                    <Card className="relative bg-gradient-to-br from-zinc-900/95 to-black/90 backdrop-blur-2xl border-zinc-700/70 overflow-hidden shadow-2xl">
                                         {/* Top accent bar */}
                                         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-400 via-emerald-400 to-green-500"></div>
 
                                         <CardHeader className="pb-4">
                                             <div className="flex items-start gap-4">
-                                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500/30 to-emerald-600/20 flex items-center justify-center border border-green-500/30 shrink-0">
-                                                    <Music className="w-7 h-7 text-green-400" />
+                                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-600/40 to-emerald-600/30 flex items-center justify-center border border-green-500/50 shrink-0 shadow-lg shadow-green-500/20">
+                                                    <Music className="w-7 h-7 text-green-300" />
                                                 </div>
                                                 <div className="flex-1">
-                                                    <CardTitle className="text-white text-3xl mb-3 leading-tight">
+                                                    <CardTitle className="text-white text-3xl mb-3 leading-tight font-bold">
                                                         {result.playlist_name}
                                                     </CardTitle>
-                                                    <CardDescription className="text-white/90 text-base italic leading-relaxed bg-white/[0.05] backdrop-blur-sm border border-white/10 rounded-xl p-4">
-                                                        <span className="text-2xl text-green-400 mr-2">
+                                                    <CardDescription className="text-gray-200 text-base italic leading-relaxed bg-zinc-900/70 backdrop-blur-sm border border-zinc-700/60 rounded-xl p-4 shadow-inner">
+                                                        <span className="text-2xl text-green-300 mr-2">
                                                             "
                                                         </span>
                                                         {result.narrative}
-                                                        <span className="text-2xl text-green-400 ml-2">
+                                                        <span className="text-2xl text-green-300 ml-2">
                                                             "
                                                         </span>
                                                     </CardDescription>
@@ -402,20 +410,20 @@ export function DashboardClient({
                                                         (track, index) => (
                                                             <div
                                                                 key={index}
-                                                                className="group/track relative bg-white/[0.05] backdrop-blur-sm hover:bg-white/[0.12] rounded-xl p-5 border border-white/10 hover:border-green-500/30 transition-all duration-300 cursor-pointer"
+                                                                className="group/track relative bg-zinc-900/60 backdrop-blur-sm hover:bg-zinc-800/80 rounded-xl p-5 border border-zinc-700/50 hover:border-green-500/60 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-green-500/20"
                                                             >
                                                                 <div className="flex items-center gap-4">
-                                                                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-600/10 flex items-center justify-center border border-green-500/20 font-bold text-green-400 shrink-0">
+                                                                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-600/40 to-emerald-600/30 flex items-center justify-center border border-green-500/50 font-bold text-green-300 shrink-0 shadow-md">
                                                                         {index +
                                                                             1}
                                                                     </div>
                                                                     <div className="flex-1 min-w-0">
-                                                                        <div className="font-semibold text-white text-lg group-hover/track:text-green-400 transition-colors truncate">
+                                                                        <div className="font-semibold text-white text-lg group-hover/track:text-green-300 transition-colors truncate">
                                                                             {
                                                                                 track.song
                                                                             }
                                                                         </div>
-                                                                        <div className="text-white/60 text-sm mt-1 truncate">
+                                                                        <div className="text-gray-300 text-sm mt-1 truncate">
                                                                             {
                                                                                 track.artist
                                                                             }

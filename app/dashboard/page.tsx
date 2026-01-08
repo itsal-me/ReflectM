@@ -1,10 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardClient } from "@/components/DashboardClient";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+    // Log what cookies we actually have
+    const cookieStore = await cookies();
+    const allCookies = cookieStore.getAll();
+    console.log(
+        "Dashboard - Cookies received:",
+        allCookies.map((c) => c.name)
+    );
+
     const supabase = await createClient();
 
     const {
