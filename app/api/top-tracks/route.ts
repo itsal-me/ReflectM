@@ -238,7 +238,9 @@ export async function GET(request: NextRequest) {
         user_id: user.id,
         personality_type: personality.type,
         personality_traits: personality.traits,
-        personality_description: personality.description,
+        personality_description: Array.isArray(personality.description) 
+          ? personality.description.join('. ') + '.'
+          : personality.description,
         valence: metrics.valence,
         energy: metrics.energy,
         danceability: metrics.danceability,

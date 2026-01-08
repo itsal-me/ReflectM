@@ -805,7 +805,7 @@ export function DashboardClient({
                                             musical vibe
                                         </p>
                                         <Button
-                                            onClick={loadTopTracks}
+                                            onClick={() => loadTopTracks()}
                                             disabled={loadingTracks}
                                             className="bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-600 hover:from-blue-400 hover:via-cyan-400 hover:to-blue-500 text-white font-bold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transition-all"
                                         >
