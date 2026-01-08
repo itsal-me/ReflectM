@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+    console.log('Calling Edge Function:', `${supabaseUrl}/functions/v1/generate-playlist`)
+    console.log('Request payload:', { prompt, discoveryMode, weather, timeOfDay, topArtistsCount: topArtists.length })
+
     const edgeFunctionResponse = await fetch(
       `${supabaseUrl}/functions/v1/generate-playlist`,
       {
@@ -65,8 +68,14 @@ export async function POST(request: NextRequest) {
       }
     )
 
+    console.log('Edge Function Response Status:', edgeFunctionResponse.status)
+    console.log('Edge Function Response OK:', edgeFunctionResponse.ok)
+
     if (!edgeFunctionResponse.ok) {
-      throw new Error('AI generation failed')
+      const errorText = await edgeFunctionResponse.text()
+      console.error('Edge Function Error Response:', errorText)
+      console.error('Edge Function Status:', edgeFunctionResponse.status)
+      throw new Error(`AI generation failed: ${edgeFunctionResponse.status} - ${errorText}`)
     }
 
     const aiResult = await edgeFunctionResponse.json()
@@ -80,10 +89,15 @@ export async function POST(request: NextRequest) {
       weather,
       timeOfDay,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Generate API error:', error)
+    console.error('Error details:', {
+      message: error?.message,
+      response: error?.response,
+      status: error?.status
+    })
     return NextResponse.json(
-      { error: 'Failed to generate playlist' },
+      { error: error?.message || 'Failed to generate playlist' },
       { status: 500 }
     )
   }

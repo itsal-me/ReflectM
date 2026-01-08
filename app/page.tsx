@@ -52,6 +52,7 @@ function HomeContent() {
             "user-top-read",
             "user-read-private",
             "user-read-email",
+            "user-read-recently-played",
         ].join(" ");
 
         const params = new URLSearchParams({

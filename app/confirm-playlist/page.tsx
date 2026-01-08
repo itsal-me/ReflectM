@@ -209,14 +209,14 @@ function ConfirmPlaylistContent() {
                     <Button
                         onClick={handleCancel}
                         variant="outline"
-                        className="flex-1 h-14 text-white border-gray-700 hover:bg-gray-800"
+                        className="flex-1 h-14 text-white bg-zinc-900/50 border-zinc-600 hover:bg-zinc-800 hover:border-zinc-500 font-semibold"
                         disabled={adding}
                     >
                         Cancel
                     </Button>
                     <Button
                         onClick={handleConfirm}
-                        className="flex-1 h-14 bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold"
+                        className="flex-1 h-14 bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 hover:from-green-400 hover:via-emerald-400 hover:to-green-500 text-black font-bold shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all"
                         disabled={adding || loading}
                     >
                         {adding ? (

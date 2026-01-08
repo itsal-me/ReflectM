@@ -13,15 +13,36 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (!user) {
+      console.error('Top tracks: No user found')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    console.log('Fetching top tracks for user:', user.id)
+
     // Get Spotify tokens
     const tokens = await getSpotifyTokens(user.id)
+    console.log('Tokens found:', !!tokens)
+    
+    if (!tokens) {
+      console.error('No Spotify tokens in database for user:', user.id)
+      return NextResponse.json(
+        { error: 'Spotify not connected. Please connect your Spotify account.' },
+        { status: 401 }
+      )
+    }
+    
+    console.log('Token details:', {
+      hasAccessToken: !!tokens.accessToken,
+      hasRefreshToken: !!tokens.refreshToken,
+      expiresAt: tokens.expiresAt,
+      isExpired: tokens.expiresAt ? new Date(tokens.expiresAt) < new Date() : 'unknown'
+    })
+    
     let accessToken = tokens?.accessToken
 
     // Refresh token if expired
     if (tokens && tokens.expiresAt && new Date(tokens.expiresAt) < new Date()) {
+      console.log('Token expired, refreshing...')
       if (tokens.refreshToken) {
         const refreshed = await refreshSpotifyToken(tokens.refreshToken)
         accessToken = refreshed.accessToken
@@ -31,24 +52,106 @@ export async function GET(request: NextRequest) {
           tokens.refreshToken,
           refreshed.expiresIn
         )
+        console.log('Token refreshed successfully')
       }
     }
 
     if (!accessToken) {
+      console.error('No access token available')
       return NextResponse.json({ error: 'No Spotify token' }, { status: 401 })
     }
 
+    console.log('Creating Spotify API client')
     const spotifyApi = createSpotifyApi(accessToken)
     
+    // Test the token by fetching current user (quick validation)
+    console.log('Validating Spotify token...')
+    try {
+      const me = await spotifyApi.getMe()
+      console.log('Token valid, user:', me.body.display_name || me.body.id)
+    } catch (tokenError: any) {
+      console.error('Invalid Spotify token:', tokenError)
+      console.error('Token validation error details:', {
+        message: tokenError?.message,
+        statusCode: tokenError?.statusCode,
+        body: tokenError?.body
+      })
+      return NextResponse.json(
+        { error: 'Spotify token is invalid or expired. Please reconnect your Spotify account.' },
+        { status: 401 }
+      )
+    }
+    
     // Fetch top tracks from last 1 month (short_term)
-    const topTracks = await spotifyApi.getMyTopTracks({
-      limit: 50,
-      time_range: 'short_term', // last 4 weeks
-    })
+    console.log('Fetching top tracks...')
+    console.log('Access token (first 20 chars):', accessToken.substring(0, 20) + '...')
+    let topTracks
+    try {
+      topTracks = await spotifyApi.getMyTopTracks({
+        limit: 50,
+        time_range: 'short_term', // last 4 weeks
+      })
+      console.log('Top tracks fetched:', topTracks.body.items.length)
+    } catch (spotifyError: any) {
+      console.error('Spotify API error (getMyTopTracks):', spotifyError)
+      console.error('Spotify error details:', {
+        message: spotifyError?.message,
+        statusCode: spotifyError?.statusCode,
+        body: spotifyError?.body
+      })
+      return NextResponse.json(
+        { error: 'Failed to fetch tracks from Spotify. Please reconnect your account.' },
+        { status: 500 }
+      )
+    }
 
-    // Fetch audio features for analysis
-    const trackIds = topTracks.body.items.map(track => track.id)
-    const audioFeatures = await spotifyApi.getAudioFeaturesForTracks(trackIds)
+    // Fetch audio features for analysis (Spotify API limits to 100 tracks per request)
+    const trackIds = topTracks.body.items.map(track => track.id).filter(id => id)
+    console.log('Fetching audio features for', trackIds.length, 'tracks')
+    
+    if (trackIds.length === 0) {
+      console.error('No valid track IDs found')
+      return NextResponse.json(
+        { error: 'No tracks available to analyze' },
+        { status: 500 }
+      )
+    }
+    
+    let audioFeatures
+    try {
+      // Batch requests if more than 50 tracks (Spotify sometimes has issues with large batches)
+      if (trackIds.length > 50) {
+        console.log('Batching audio features request...')
+        const batch1 = await spotifyApi.getAudioFeaturesForTracks(trackIds.slice(0, 50))
+        const batch2 = await spotifyApi.getAudioFeaturesForTracks(trackIds.slice(50))
+        audioFeatures = {
+          body: {
+            audio_features: [...batch1.body.audio_features, ...batch2.body.audio_features]
+          }
+        }
+      } else {
+        audioFeatures = await spotifyApi.getAudioFeaturesForTracks(trackIds)
+      }
+      console.log('Audio features fetched successfully')
+    } catch (spotifyError: any) {
+      console.error('Spotify API error (getAudioFeaturesForTracks):', spotifyError)
+      console.error('Spotify error details:', {
+        message: spotifyError?.message,
+        statusCode: spotifyError?.statusCode,
+        body: spotifyError?.body
+      })
+      
+      // Return 403 if it's a permissions error, otherwise 500
+      const statusCode = spotifyError?.statusCode === 403 ? 403 : 500
+      return NextResponse.json(
+        { 
+          error: statusCode === 403 
+            ? 'Spotify permissions required. Please logout and login again.' 
+            : 'Failed to analyze tracks from Spotify' 
+        },
+        { status: statusCode }
+      )
+    }
 
     // Calculate personality metrics
     const features = audioFeatures.body.audio_features.filter(f => f !== null)
@@ -95,10 +198,15 @@ export async function GET(request: NextRequest) {
         instrumentalness: Math.round(avgInstrumentalness * 100),
       },
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Top tracks error:', error)
+    console.error('Error details:', {
+      message: error?.message,
+      body: error?.body,
+      statusCode: error?.statusCode
+    })
     return NextResponse.json(
-      { error: 'Failed to fetch top tracks' },
+      { error: error?.message || 'Failed to fetch top tracks' },
       { status: 500 }
     )
   }

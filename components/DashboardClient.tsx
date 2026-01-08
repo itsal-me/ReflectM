@@ -62,6 +62,7 @@ export function DashboardClient({
     const [reflections, setReflections] = useState<any[]>([]);
     const [topTracks, setTopTracks] = useState<any>(null);
     const [loadingTracks, setLoadingTracks] = useState(false);
+    const [showSessionExpired, setShowSessionExpired] = useState(false);
     const router = useRouter();
     const supabase = createClient();
 
@@ -80,6 +81,7 @@ export function DashboardClient({
             "user-top-read",
             "user-read-private",
             "user-read-email",
+            "user-read-recently-played",
         ].join(" ");
 
         const params = new URLSearchParams({
@@ -170,13 +172,35 @@ export function DashboardClient({
         try {
             const response = await fetch("/api/top-tracks");
             if (!response.ok) {
-                throw new Error("Failed to fetch top tracks");
+                const errorData = await response.json().catch(() => ({}));
+                console.error(
+                    "Top tracks API error:",
+                    response.status,
+                    errorData
+                );
+
+                // Check if it's a permissions error (403 or token expired)
+                if (response.status === 403 || response.status === 401) {
+                    setShowSessionExpired(true);
+                    toast.error(
+                        "Your Spotify session has expired. Please logout and login again to grant updated permissions.",
+                        { duration: 6000 }
+                    );
+                    throw new Error("Spotify permissions expired");
+                }
+
+                throw new Error(
+                    errorData.error || "Failed to fetch top tracks"
+                );
             }
             const data = await response.json();
+            console.log("Top tracks loaded:", data);
             setTopTracks(data);
         } catch (error) {
             console.error("Error loading top tracks:", error);
-            toast.error("Failed to load your listening history");
+            if (!(error as Error).message.includes("permissions expired")) {
+                toast.error("Failed to load your listening history");
+            }
         } finally {
             setLoadingTracks(false);
         }
@@ -190,30 +214,84 @@ export function DashboardClient({
             />
 
             <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 p-4 md:p-8">
+                {/* Session Expiry Warning Banner */}
+                {showSessionExpired && (
+                    <div className="max-w-6xl mx-auto mb-4 bg-gradient-to-r from-red-500/20 via-orange-500/20 to-red-500/20 backdrop-blur-xl border-2 border-red-500/50 rounded-xl p-4 shadow-lg shadow-red-500/20">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-red-500/30 flex items-center justify-center border border-red-500/50 flex-shrink-0">
+                                    <svg
+                                        className="w-5 h-5 text-red-300"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                        />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p className="text-white font-semibold text-sm md:text-base">
+                                        🔄 Spotify Session Expired
+                                    </p>
+                                    <p className="text-white/80 text-xs md:text-sm">
+                                        Your permissions need to be updated.
+                                        Please logout and login again to
+                                        continue.
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={handleLogout}
+                                className="bg-red-500 hover:bg-red-600 text-white font-semibold whitespace-nowrap w-full sm:w-auto"
+                            >
+                                <LogOut className="w-4 h-4 mr-2" />
+                                Logout Now
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
                 <div className="max-w-6xl mx-auto">
-                    {/* Header with enhanced contrast */}
+                    {/* Header with enhanced contrast and user info */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 p-6 bg-gradient-to-br from-zinc-900/80 to-black/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl shadow-2xl">
                         <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1DB954] to-[#1ed760] flex items-center justify-center shadow-lg shadow-green-500/30">
-                                <Music className="w-8 h-8 text-black" />
+                            <div className="inline-flex items-center justify-center gap-2 mb-4">
+                                <Music className="w-8 h-8 text-[#1DB954] mr-2" />
                             </div>
                             <div>
                                 <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
                                     ReflectM
                                 </h1>
                                 <p className="text-gray-300 text-sm font-medium">
-                                    AI-Powered Playlist Generator
+                                    Welcome,{" "}
+                                    {user.email?.split("@")[0] || "User"}
                                 </p>
                             </div>
                         </div>
-                        <Button
-                            onClick={handleLogout}
-                            variant="outline"
-                            className="text-white bg-zinc-900/50 hover:bg-[#1DB954] hover:text-black border-zinc-700 hover:border-[#1DB954] transition-all shadow-lg hover:shadow-green-500/30 font-medium"
-                        >
-                            <LogOut className="w-4 h-4 mr-2" />
-                            Logout
-                        </Button>
+                        <div className="flex items-center gap-3">
+                            {!spotifyConnected && (
+                                <Button
+                                    onClick={handleConnectSpotify}
+                                    className="bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold shadow-lg hover:shadow-green-500/30"
+                                >
+                                    <Music className="w-4 h-4 mr-2" />
+                                    Connect Spotify
+                                </Button>
+                            )}
+                            <Button
+                                onClick={handleLogout}
+                                variant="outline"
+                                className="text-white bg-zinc-900/50 hover:bg-[#1DB954] hover:text-black border-zinc-700 hover:border-[#1DB954] transition-all shadow-lg hover:shadow-green-500/30 font-medium"
+                            >
+                                <LogOut className="w-4 h-4 mr-2" />
+                                Logout
+                            </Button>
+                        </div>
                     </div>
 
                     <Tabs defaultValue="generate" className="space-y-6">
@@ -236,7 +314,6 @@ export function DashboardClient({
                             <TabsTrigger
                                 value="personality"
                                 className="text-gray-300 data-[state=active]:text-white data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-600/40 data-[state=active]:to-cyan-600/30 data-[state=active]:border data-[state=active]:border-blue-500/50 data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 font-medium"
-                                onClick={loadTopTracks}
                             >
                                 <TrendingUp className="w-4 h-4 mr-2" />
                                 Your Vibe
@@ -270,10 +347,10 @@ export function DashboardClient({
                                             className="min-h-[120px] bg-zinc-900/60 backdrop-blur-sm border-zinc-700/60 text-white placeholder:text-gray-400 focus:border-green-500/70 focus:bg-zinc-900/80 transition-all resize-none shadow-inner"
                                         />
 
-                                        {/* Controls with enhanced toggle buttons */}
-                                        <div className="flex flex-wrap gap-4 items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className="group flex items-center space-x-3 px-5 py-3 bg-gradient-to-br from-zinc-900/90 to-zinc-800/90 backdrop-blur-sm border-2 border-zinc-700/60 rounded-xl hover:border-green-500/50 hover:shadow-lg hover:shadow-green-500/20 transition-all duration-300">
+                                        {/* Controls with enhanced toggle buttons - responsive */}
+                                        <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-start sm:items-center justify-between">
+                                            <div className="flex flex-col xs:flex-row items-start xs:items-center gap-3 w-full sm:w-auto">
+                                                <div className="group flex items-center space-x-3 px-4 py-2.5 bg-gradient-to-br from-zinc-900/90 to-zinc-800/90 backdrop-blur-sm border-2 border-zinc-700/60 rounded-xl hover:border-green-500/50 hover:shadow-lg hover:shadow-green-500/20 transition-all duration-300 w-full xs:w-auto">
                                                     <Switch
                                                         id="discovery"
                                                         checked={discoveryMode}
@@ -283,20 +360,27 @@ export function DashboardClient({
                                                     />
                                                     <label
                                                         htmlFor="discovery"
-                                                        className="text-gray-100 text-sm font-semibold cursor-pointer select-none flex items-center gap-2 group-hover:text-white transition-colors"
+                                                        className="text-gray-100 text-sm font-semibold cursor-pointer select-none flex items-center gap-2 group-hover:text-white transition-colors whitespace-nowrap"
                                                     >
-                                                        <span className="text-lg">
+                                                        <span className="text-base">
                                                             {discoveryMode
                                                                 ? "🔍"
                                                                 : "💚"}
                                                         </span>
-                                                        {discoveryMode
-                                                            ? "Discovery Mode"
-                                                            : "Comfort Zone"}
+                                                        <span className="hidden xs:inline">
+                                                            {discoveryMode
+                                                                ? "Discovery Mode"
+                                                                : "Comfort Zone"}
+                                                        </span>
+                                                        <span className="xs:hidden">
+                                                            {discoveryMode
+                                                                ? "Discovery"
+                                                                : "Comfort"}
+                                                        </span>
                                                     </label>
                                                 </div>
 
-                                                <div className="group flex items-center space-x-3 px-5 py-3 bg-gradient-to-br from-zinc-900/90 to-zinc-800/90 backdrop-blur-sm border-2 border-zinc-700/60 rounded-xl hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300">
+                                                <div className="group flex items-center space-x-3 px-4 py-2.5 bg-gradient-to-br from-zinc-900/90 to-zinc-800/90 backdrop-blur-sm border-2 border-zinc-700/60 rounded-xl hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300 w-full xs:w-auto">
                                                     <Switch
                                                         id="weather"
                                                         checked={weatherSync}
@@ -306,9 +390,9 @@ export function DashboardClient({
                                                     />
                                                     <label
                                                         htmlFor="weather"
-                                                        className="text-gray-100 text-sm font-semibold cursor-pointer select-none flex items-center gap-2 group-hover:text-white transition-colors"
+                                                        className="text-gray-100 text-sm font-semibold cursor-pointer select-none flex items-center gap-2 group-hover:text-white transition-colors whitespace-nowrap"
                                                     >
-                                                        <span className="text-lg">
+                                                        <span className="text-base">
                                                             🌤️
                                                         </span>
                                                         Weather Sync
@@ -545,6 +629,28 @@ export function DashboardClient({
                                 </div>
                             ) : topTracks ? (
                                 <div className="space-y-6">
+                                    {/* Reanalyze Button */}
+                                    <div className="flex justify-end">
+                                        <Button
+                                            onClick={loadTopTracks}
+                                            disabled={loadingTracks}
+                                            variant="outline"
+                                            className="text-white bg-zinc-900/50 border-blue-500/50 hover:bg-blue-500/20 hover:border-blue-500 font-semibold"
+                                        >
+                                            {loadingTracks ? (
+                                                <>
+                                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                                                    Analyzing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <TrendingUp className="w-4 h-4 mr-2" />
+                                                    Reanalyze My Vibe
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+
                                     {/* Personality Type Card */}
                                     <Card className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-2xl border-blue-500/30">
                                         <CardHeader>
@@ -582,21 +688,12 @@ export function DashboardClient({
                                                     )
                                                 )}
                                             </div>
-                                            <div className="space-y-2">
-                                                {topTracks.personality.description.map(
-                                                    (
-                                                        desc: string,
-                                                        i: number
-                                                    ) => (
-                                                        <p
-                                                            key={i}
-                                                            className="text-white/80 text-sm"
-                                                        >
-                                                            • {desc}
-                                                        </p>
-                                                    )
-                                                )}
-                                            </div>
+                                            <p className="text-white/80 text-sm leading-relaxed">
+                                                {
+                                                    topTracks.personality
+                                                        .description
+                                                }
+                                            </p>
                                         </CardContent>
                                     </Card>
 
@@ -696,13 +793,31 @@ export function DashboardClient({
                                         <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 flex items-center justify-center border border-blue-500/20">
                                             <TrendingUp className="w-10 h-10 text-blue-400" />
                                         </div>
-                                        <p className="text-white/70 text-lg mb-2">
-                                            No listening data yet
+                                        <p className="text-white/70 text-lg mb-4 font-semibold">
+                                            Discover Your Musical Personality
                                         </p>
-                                        <p className="text-white/50 text-sm">
-                                            Start listening to music on Spotify
-                                            to see your personality analysis
+                                        <p className="text-white/50 text-sm mb-6">
+                                            Analyze your Spotify listening
+                                            habits to uncover your unique
+                                            musical vibe
                                         </p>
+                                        <Button
+                                            onClick={loadTopTracks}
+                                            disabled={loadingTracks}
+                                            className="bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-600 hover:from-blue-400 hover:via-cyan-400 hover:to-blue-500 text-white font-bold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transition-all"
+                                        >
+                                            {loadingTracks ? (
+                                                <>
+                                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                                                    Analyzing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <TrendingUp className="w-5 h-5 mr-2" />
+                                                    Analyze My Vibe
+                                                </>
+                                            )}
+                                        </Button>
                                     </CardContent>
                                 </Card>
                             )}
