@@ -24,6 +24,15 @@ body {
     font-family: var(--font-manrope), system-ui, -apple-system, sans-serif;
 }
 
+/* Sonner toast styling */
+[data-sonner-toaster] {
+    font-family: var(--font-manrope), system-ui, -apple-system, sans-serif !important;
+}
+
+[data-sonner-toast] {
+    font-family: var(--font-manrope), system-ui, -apple-system, sans-serif !important;
+}
+
 /* Advanced Glassmorphism Animations */
 
 /* Floating animations for orbs */

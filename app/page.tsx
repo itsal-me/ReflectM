@@ -1,6 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import {
     Music,
     Sparkles,
@@ -15,14 +18,31 @@ import {
 import Logo from "@/logo.png";
 
 export default function Home() {
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        // Check for error messages from redirects
+        const error = searchParams.get("error");
+        if (error) {
+            switch (error) {
+                case "auth_failed":
+                    toast.error("Authentication failed. Please try again.");
+                    break;
+                case "no_code":
+                    toast.error("No authorization code received from Spotify.");
+                    break;
+                default:
+                    toast.error("An error occurred. Please try again.");
+            }
+        }
+    }, [searchParams]);
+
     const handleSpotifyLogin = () => {
         const clientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
         const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI;
 
         if (!clientId || !redirectUri) {
-            alert(
-                "Spotify is not configured. Please check environment variables."
-            );
+            toast.error("Spotify is not configured. Please contact support.");
             return;
         }
 

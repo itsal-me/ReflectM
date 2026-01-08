@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -23,6 +24,7 @@ export default function RootLayout({
         <html lang="en">
             <body className={`${manrope.variable} antialiased`}>
                 {children}
+                <Toaster position="top-center" richColors />
             </body>
         </html>
     );

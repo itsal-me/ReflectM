@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { User } from "@supabase/supabase-js";
+import { toast } from "sonner";
 import { DynamicAura } from "./DynamicAura";
 import { WeatherBadge } from "./WeatherBadge";
 import { Textarea } from "./ui/textarea";
@@ -17,7 +18,14 @@ import {
 import { ScrollArea } from "./ui/scroll-area";
 import { Skeleton } from "./ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Music, Sparkles, History, LogOut } from "lucide-react";
+import {
+    Music,
+    Sparkles,
+    History,
+    LogOut,
+    TrendingUp,
+    User as UserIcon,
+} from "lucide-react";
 import { getTimeOfDay } from "@/lib/context/weather";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -52,6 +60,8 @@ export function DashboardClient({
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<PlaylistResult | null>(null);
     const [reflections, setReflections] = useState<any[]>([]);
+    const [topTracks, setTopTracks] = useState<any>(null);
+    const [loadingTracks, setLoadingTracks] = useState(false);
     const router = useRouter();
     const supabase = createClient();
 
@@ -60,9 +70,7 @@ export function DashboardClient({
         const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI;
 
         if (!clientId || !redirectUri) {
-            alert(
-                "Spotify credentials not configured. Please check your environment variables."
-            );
+            toast.error("Spotify credentials not configured");
             return;
         }
 
@@ -87,13 +95,19 @@ export function DashboardClient({
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
+        toast.success("Logged out successfully");
         router.push("/");
     };
 
     const handleGenerate = async () => {
-        if (!prompt.trim()) return;
+        if (!prompt.trim()) {
+            toast.error("Please enter a mood description");
+            return;
+        }
 
         setLoading(true);
+        const toastId = toast.loading("Generating your playlist...");
+
         try {
             // Call the generate API
             const response = await fetch("/api/generate", {
@@ -108,14 +122,31 @@ export function DashboardClient({
             });
 
             if (!response.ok) {
-                throw new Error("Failed to generate playlist");
+                const errorData = await response.json();
+                throw new Error(
+                    errorData.error || "Failed to generate playlist"
+                );
             }
 
             const data = await response.json();
-            setResult(data);
+
+            // Store in session storage for confirmation page
+            sessionStorage.setItem("pending_playlist", JSON.stringify(data));
+
+            toast.success("Playlist generated! Review and confirm.", {
+                id: toastId,
+            });
+
+            // Redirect to confirmation page
+            router.push("/confirm-playlist");
         } catch (error) {
             console.error("Generation error:", error);
-            alert("Failed to generate playlist. Please try again.");
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to generate playlist. Please try again.",
+                { id: toastId }
+            );
         } finally {
             setLoading(false);
         }
@@ -134,6 +165,23 @@ export function DashboardClient({
         }
     };
 
+    const loadTopTracks = async () => {
+        setLoadingTracks(true);
+        try {
+            const response = await fetch("/api/top-tracks");
+            if (!response.ok) {
+                throw new Error("Failed to fetch top tracks");
+            }
+            const data = await response.json();
+            setTopTracks(data);
+        } catch (error) {
+            console.error("Error loading top tracks:", error);
+            toast.error("Failed to load your listening history");
+        } finally {
+            setLoadingTracks(false);
+        }
+    };
+
     return (
         <>
             <DynamicAura
@@ -141,25 +189,27 @@ export function DashboardClient({
                 energy={result?.energy || 0.5}
             />
 
-            <div className="min-h-screen p-4 md:p-8">
+            <div className="min-h-screen bg-black p-4 md:p-8">
                 <div className="max-w-6xl mx-auto">
                     {/* Header */}
                     <div className="flex justify-between items-center mb-8">
-                        <div className="group relative">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-green-500/30 to-emerald-500/30 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                            <div className="relative px-6 py-4 bg-white/[0.06] backdrop-blur-xl border border-white/10 rounded-2xl">
-                                <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-green-300 via-emerald-400 to-green-500 bg-clip-text text-transparent">
+                        <div className="flex items-center gap-4">
+                            <div className="w-16 h-16 rounded-2xl bg-[#1DB954] flex items-center justify-center">
+                                <Music className="w-8 h-8 text-black" />
+                            </div>
+                            <div>
+                                <h1 className="text-3xl md:text-4xl font-bold text-white">
                                     ReflectM
                                 </h1>
-                                <p className="text-white/70 text-sm mt-1">
+                                <p className="text-gray-400 text-sm">
                                     AI-Powered Playlist Generator
                                 </p>
                             </div>
                         </div>
                         <Button
                             onClick={handleLogout}
-                            variant="ghost"
-                            className="text-white hover:bg-white/10 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all"
+                            variant="outline"
+                            className="text-white hover:bg-[#1DB954] hover:text-black border-gray-700 hover:border-[#1DB954] transition-all"
                         >
                             <LogOut className="w-4 h-4 mr-2" />
                             Logout
@@ -182,6 +232,14 @@ export function DashboardClient({
                             >
                                 <History className="w-4 h-4 mr-2" />
                                 Reflections
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="personality"
+                                className="data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-600/10 data-[state=active]:border data-[state=active]:border-blue-500/30 data-[state=active]:shadow-lg"
+                                onClick={loadTopTracks}
+                            >
+                                <TrendingUp className="w-4 h-4 mr-2" />
+                                Your Vibe
                             </TabsTrigger>
                         </TabsList>
 
@@ -460,6 +518,186 @@ export function DashboardClient({
                                     ))
                                 )}
                             </div>
+                        </TabsContent>
+
+                        <TabsContent value="personality">
+                            {loadingTracks ? (
+                                <div className="space-y-4">
+                                    {[...Array(3)].map((_, i) => (
+                                        <Card
+                                            key={i}
+                                            className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20"
+                                        >
+                                            <CardContent className="p-8">
+                                                <Skeleton className="h-8 w-3/4 bg-white/10 mb-4" />
+                                                <Skeleton className="h-24 w-full bg-white/10" />
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            ) : topTracks ? (
+                                <div className="space-y-6">
+                                    {/* Personality Type Card */}
+                                    <Card className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-2xl border-blue-500/30">
+                                        <CardHeader>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-14 h-14 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                                                    <UserIcon className="w-7 h-7 text-blue-400" />
+                                                </div>
+                                                <div>
+                                                    <CardTitle className="text-white text-2xl">
+                                                        {
+                                                            topTracks
+                                                                .personality
+                                                                .type
+                                                        }
+                                                    </CardTitle>
+                                                    <CardDescription className="text-white/70">
+                                                        Your Musical Personality
+                                                    </CardDescription>
+                                                </div>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="flex flex-wrap gap-2">
+                                                {topTracks.personality.traits.map(
+                                                    (
+                                                        trait: string,
+                                                        i: number
+                                                    ) => (
+                                                        <span
+                                                            key={i}
+                                                            className="px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-full text-blue-300 text-sm font-medium"
+                                                        >
+                                                            {trait}
+                                                        </span>
+                                                    )
+                                                )}
+                                            </div>
+                                            <div className="space-y-2">
+                                                {topTracks.personality.description.map(
+                                                    (
+                                                        desc: string,
+                                                        i: number
+                                                    ) => (
+                                                        <p
+                                                            key={i}
+                                                            className="text-white/80 text-sm"
+                                                        >
+                                                            • {desc}
+                                                        </p>
+                                                    )
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+
+                                    {/* Metrics Card */}
+                                    <Card className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20">
+                                        <CardHeader>
+                                            <CardTitle className="text-white">
+                                                Your Listening Patterns
+                                            </CardTitle>
+                                            <CardDescription className="text-white/70">
+                                                Based on your top tracks from
+                                                the last month
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            {Object.entries(
+                                                topTracks.metrics
+                                            ).map(
+                                                ([key, value]: [
+                                                    string,
+                                                    any
+                                                ]) => (
+                                                    <div key={key}>
+                                                        <div className="flex justify-between mb-2">
+                                                            <span className="text-white/80 capitalize">
+                                                                {key}
+                                                            </span>
+                                                            <span className="text-[#1DB954] font-bold">
+                                                                {value}%
+                                                            </span>
+                                                        </div>
+                                                        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-gradient-to-r from-[#1DB954] to-[#1ed760] transition-all duration-500"
+                                                                style={{
+                                                                    width: `${value}%`,
+                                                                }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            )}
+                                        </CardContent>
+                                    </Card>
+
+                                    {/* Top Tracks Card */}
+                                    <Card className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20">
+                                        <CardHeader>
+                                            <CardTitle className="text-white">
+                                                Your Top Tracks
+                                            </CardTitle>
+                                            <CardDescription className="text-white/70">
+                                                Last 4 weeks
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <ScrollArea className="h-[400px] pr-4">
+                                                <div className="space-y-3">
+                                                    {topTracks.tracks
+                                                        .slice(0, 20)
+                                                        .map(
+                                                            (
+                                                                track: any,
+                                                                index: number
+                                                            ) => (
+                                                                <div
+                                                                    key={index}
+                                                                    className="flex items-center gap-4 p-3 bg-white/[0.05] hover:bg-white/[0.12] rounded-xl transition-colors"
+                                                                >
+                                                                    <div className="w-10 h-10 rounded bg-[#1DB954]/20 flex items-center justify-center font-bold text-[#1DB954] text-sm">
+                                                                        {index +
+                                                                            1}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="font-semibold text-white truncate">
+                                                                            {
+                                                                                track.name
+                                                                            }
+                                                                        </div>
+                                                                        <div className="text-sm text-gray-400 truncate">
+                                                                            {
+                                                                                track.artist
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        )}
+                                                </div>
+                                            </ScrollArea>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            ) : (
+                                <Card className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20">
+                                    <CardContent className="p-16 text-center">
+                                        <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 flex items-center justify-center border border-blue-500/20">
+                                            <TrendingUp className="w-10 h-10 text-blue-400" />
+                                        </div>
+                                        <p className="text-white/70 text-lg mb-2">
+                                            No listening data yet
+                                        </p>
+                                        <p className="text-white/50 text-sm">
+                                            Start listening to music on Spotify
+                                            to see your personality analysis
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                            )}
                         </TabsContent>
                     </Tabs>
                 </div>

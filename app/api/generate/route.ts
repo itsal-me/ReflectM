@@ -71,59 +71,14 @@ export async function POST(request: NextRequest) {
 
     const aiResult = await edgeFunctionResponse.json()
 
-    let playlistUrl: string | undefined
-
-    // Create Spotify playlist if connected
-    if (accessToken) {
-      const spotifyApi = createSpotifyApi(accessToken)
-      const userProfile = await spotifyApi.getMe()
-
-      const playlistData = await createPlaylistFromTracks(
-        spotifyApi,
-        userProfile.body.id,
-        aiResult.playlist_name,
-        aiResult.tracks,
-        aiResult.narrative
-      )
-
-      if (playlistData) {
-        playlistUrl = playlistData.playlistUrl
-
-        // Save to reflections
-        await supabase.from('reflections').insert({
-          user_id: user.id,
-          prompt,
-          playlist_name: aiResult.playlist_name,
-          narrative: aiResult.narrative,
-          spotify_playlist_id: playlistData.playlistId,
-          spotify_playlist_url: playlistData.playlistUrl,
-          valence: aiResult.valence,
-          energy: aiResult.energy,
-          discovery_mode: discoveryMode,
-          weather_condition: weather,
-          time_of_day: timeOfDay,
-          tracks: aiResult.tracks,
-        })
-      }
-    } else {
-      // Save to reflections without Spotify data
-      await supabase.from('reflections').insert({
-        user_id: user.id,
-        prompt,
-        playlist_name: aiResult.playlist_name,
-        narrative: aiResult.narrative,
-        valence: aiResult.valence,
-        energy: aiResult.energy,
-        discovery_mode: discoveryMode,
-        weather_condition: weather,
-        time_of_day: timeOfDay,
-        tracks: aiResult.tracks,
-      })
-    }
-
+    // Return AI result without creating Spotify playlist yet
+    // User will confirm on the next page
     return NextResponse.json({
       ...aiResult,
-      spotify_url: playlistUrl,
+      prompt,
+      discoveryMode,
+      weather,
+      timeOfDay,
     })
   } catch (error) {
     console.error('Generate API error:', error)

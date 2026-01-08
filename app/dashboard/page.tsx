@@ -9,9 +9,13 @@ export default async function DashboardPage() {
 
     const {
         data: { user },
+        error: userError,
     } = await supabase.auth.getUser();
 
+    console.log("Dashboard - User:", user?.email, "Error:", userError);
+
     if (!user) {
+        console.log("No user found, redirecting to home");
         redirect("/");
     }
 
