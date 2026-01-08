@@ -52,6 +52,27 @@ export async function saveSpotifyTokens(
   return true
 }
 
+export async function clearSpotifyTokens(userId: string) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('user_preferences')
+    .update({
+      spotify_access_token: null,
+      spotify_refresh_token: null,
+      spotify_token_expires_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Failed to clear Spotify tokens:', error)
+    throw new Error(`Database error: ${error.message}`)
+  }
+
+  console.log('Spotify tokens cleared for user:', userId)
+}
+
 export async function refreshSpotifyToken(refreshToken: string) {
   const response = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',

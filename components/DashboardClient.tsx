@@ -176,15 +176,22 @@ export function DashboardClient({
     };
 
     const loadReflections = async () => {
-        const { data } = await supabase
-            .from("reflections")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(10);
+        try {
+            const response = await fetch("/api/reflections");
+            const body = await response.json();
 
-        if (data) {
-            setReflections(data);
+            if (!response.ok) {
+                throw new Error(body.error || "Failed to fetch reflections");
+            }
+
+            setReflections(body.data || []);
+        } catch (error) {
+            console.error("Error loading reflections:", error);
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Could not load your reflections"
+            );
         }
     };
 

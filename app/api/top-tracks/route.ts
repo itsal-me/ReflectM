@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createSpotifyApi } from '@/lib/spotify/client'
-import { getSpotifyTokens, refreshSpotifyToken, saveSpotifyTokens } from '@/lib/spotify/auth'
+import { getSpotifyTokens, refreshSpotifyToken, saveSpotifyTokens, clearSpotifyTokens } from '@/lib/spotify/auth'
 import { getLatestVibeAnalysis, saveVibeAnalysis } from '@/lib/db/vibe'
 
 export async function GET(request: NextRequest) {
@@ -122,12 +122,21 @@ export async function GET(request: NextRequest) {
     // Fetch top tracks from last 1 month (short_term)
     console.log('Fetching top tracks...')
     console.log('Access token (first 20 chars):', accessToken.substring(0, 20) + '...')
-    let topTracks
-    try {
-      topTracks = await spotifyApi.getMyTopTracks({
+
+    const fetchTopTracks = async (tokenToUse: string) => {
+      const api = createSpotifyApi(tokenToUse)
+      if (tokenToUse !== accessToken) {
+        console.log('Retrying top tracks with refreshed token')
+      }
+      return api.getMyTopTracks({
         limit: 50,
         time_range: 'short_term', // last 4 weeks
       })
+    }
+
+    let topTracks
+    try {
+      topTracks = await fetchTopTracks(accessToken)
       console.log('Top tracks fetched:', topTracks.body.items.length)
     } catch (spotifyError: any) {
       console.error('Spotify API error (getMyTopTracks):', spotifyError)
@@ -136,10 +145,30 @@ export async function GET(request: NextRequest) {
         statusCode: spotifyError?.statusCode,
         body: spotifyError?.body
       })
-      return NextResponse.json(
-        { error: 'Failed to fetch tracks from Spotify. Please reconnect your account.' },
-        { status: 500 }
-      )
+
+      // Attempt a single token refresh and retry on 401/403
+      if ((spotifyError?.statusCode === 401 || spotifyError?.statusCode === 403) && tokens?.refreshToken) {
+        try {
+          console.log('Refreshing Spotify token after top tracks failure...')
+          const refreshed = await refreshSpotifyToken(tokens.refreshToken)
+          accessToken = refreshed.accessToken
+          await saveSpotifyTokens(user.id, refreshed.accessToken, tokens.refreshToken, refreshed.expiresIn)
+          topTracks = await fetchTopTracks(accessToken)
+          console.log('Top tracks fetched successfully after refresh')
+        } catch (refreshError: any) {
+          console.error('Refresh + retry (top tracks) failed:', refreshError)
+          const statusCode = spotifyError?.statusCode === 403 ? 403 : 401
+          return NextResponse.json(
+            { error: 'Spotify permissions required. Please reconnect.' },
+            { status: statusCode }
+          )
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'Failed to fetch tracks from Spotify. Please reconnect your account.' },
+          { status: 500 }
+        )
+      }
     }
 
     // Fetch audio features for analysis (Spotify API limits to 100 tracks per request)
@@ -205,10 +234,19 @@ export async function GET(request: NextRequest) {
         }
       } else {
         const statusCode = spotifyError?.statusCode === 403 ? 403 : 500
+
+        if (statusCode === 403) {
+          try {
+            await clearSpotifyTokens(user.id)
+          } catch (clearErr) {
+            console.error('Failed to clear tokens after 403:', clearErr)
+          }
+        }
+
         return NextResponse.json(
           { 
             error: statusCode === 403 
-              ? 'Spotify permissions required. Please reconnect.' 
+              ? 'Spotify blocked the request. Please reconnect (log out, then log back in and re-authorize ReflectM).' 
               : 'Failed to analyze tracks from Spotify' 
           },
           { status: statusCode }
