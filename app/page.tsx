@@ -61,6 +61,8 @@ function HomeContent() {
             redirect_uri: redirectUri,
             scope: scopes,
             show_dialog: "true",
+            // Add timestamp to force new auth flow and bypass Spotify's permission cache
+            state: Date.now().toString(),
         });
 
         window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;

@@ -64,6 +64,7 @@ export async function createPlaylistFromTracks(
     })
 
     const playlistId = playlist.body.id
+    console.log('Playlist created:', { playlistId, playlistUrl: playlist.body.external_urls?.spotify })
 
     // Search for track URIs
     const trackUris: string[] = []
@@ -72,6 +73,10 @@ export async function createPlaylistFromTracks(
       if (uri) {
         trackUris.push(uri)
       }
+    }
+
+    if (trackUris.length === 0) {
+      throw new Error('No valid tracks found to add to playlist')
     }
 
     // Add tracks to playlist (Spotify API limits to 100 tracks per request)

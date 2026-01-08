@@ -20,6 +20,10 @@ export async function POST(request: NextRequest) {
 
     // Get Spotify tokens
     const tokens = await getSpotifyTokens(user.id)
+    if (!tokens) {
+      return NextResponse.json({ error: 'Spotify not connected' }, { status: 401 })
+    }
+
     let accessToken = tokens?.accessToken
 
     // Refresh token if expired
@@ -53,11 +57,16 @@ export async function POST(request: NextRequest) {
     )
 
     if (!playlistData) {
-      throw new Error('Failed to create playlist')
+      console.error('Playlist creation returned null (likely no valid tracks)')
+      return NextResponse.json(
+        { error: 'Could not create playlist from the provided tracks. Please try regenerating.' },
+        { status: 400 }
+      )
     }
 
     // Save to reflections
-    await supabase.from('reflections').insert({
+    console.log('Saving reflection to database...')
+    const { data: reflectionData, error: reflectionError } = await supabase.from('reflections').insert({
       user_id: user.id,
       prompt: prompt || '',
       playlist_name,
@@ -71,6 +80,13 @@ export async function POST(request: NextRequest) {
       time_of_day: timeOfDay,
       tracks,
     })
+    
+    if (reflectionError) {
+      console.error('Failed to save reflection:', reflectionError)
+      throw new Error('Failed to save playlist history')
+    }
+    
+    console.log('Reflection saved successfully')
 
     return NextResponse.json({
       success: true,

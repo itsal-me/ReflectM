@@ -30,6 +30,9 @@ export async function saveSpotifyTokens(
 
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
+  console.log('Saving tokens for user:', userId)
+  console.log('Token expires at:', expiresAt)
+
   const { error } = await supabase
     .from('user_preferences')
     .upsert({
@@ -40,7 +43,13 @@ export async function saveSpotifyTokens(
       updated_at: new Date().toISOString(),
     })
 
-  return !error
+  if (error) {
+    console.error('Failed to save Spotify tokens:', error)
+    throw new Error(`Database error: ${error.message}`)
+  }
+
+  console.log('Tokens saved successfully')
+  return true
 }
 
 export async function refreshSpotifyToken(refreshToken: string) {

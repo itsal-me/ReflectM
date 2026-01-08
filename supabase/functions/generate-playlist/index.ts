@@ -110,7 +110,9 @@ JSON FORMAT (return exactly this structure):
     const openRouterData: any = await openRouterResponse.json()
     const aiResponseText: string = openRouterData.choices[0].message.content
 
-    // Parse AI response (handle potential markdown wrapping)
+    console.log('Raw AI response:', aiResponseText.substring(0, 200))
+
+    // Parse AI response (handle potential markdown wrapping and extra text)
     let cleanedResponse = aiResponseText.trim()
     
     // Remove markdown code blocks if present
@@ -119,8 +121,24 @@ JSON FORMAT (return exactly this structure):
     } else if (cleanedResponse.startsWith('```')) {
       cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '')
     }
+    
+    // Find JSON object boundaries if there's extra text
+    const jsonStart = cleanedResponse.indexOf('{')
+    const jsonEnd = cleanedResponse.lastIndexOf('}') + 1
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
+      cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd)
+    }
+    
+    console.log('Cleaned response:', cleanedResponse.substring(0, 200))
 
-    const aiResponse: AIResponse = JSON.parse(cleanedResponse)
+    let aiResponse: AIResponse
+    try {
+      aiResponse = JSON.parse(cleanedResponse)
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError)
+      console.error('Failed to parse:', cleanedResponse)
+      throw new Error('AI returned invalid JSON format. Please try again.')
+    }
 
     // Validate response structure
     if (

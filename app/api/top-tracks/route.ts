@@ -155,20 +155,28 @@ export async function GET(request: NextRequest) {
     }
     
     let audioFeatures
-    try {
+    const fetchAudioFeatures = async (tokenToUse: string) => {
+      const api = createSpotifyApi(tokenToUse)
+      if (tokenToUse !== accessToken) {
+        console.log('Retrying audio features with refreshed token')
+      }
+
       // Batch requests if more than 50 tracks (Spotify sometimes has issues with large batches)
       if (trackIds.length > 50) {
         console.log('Batching audio features request...')
-        const batch1 = await spotifyApi.getAudioFeaturesForTracks(trackIds.slice(0, 50))
-        const batch2 = await spotifyApi.getAudioFeaturesForTracks(trackIds.slice(50))
-        audioFeatures = {
+        const batch1 = await api.getAudioFeaturesForTracks(trackIds.slice(0, 50))
+        const batch2 = await api.getAudioFeaturesForTracks(trackIds.slice(50))
+        return {
           body: {
             audio_features: [...batch1.body.audio_features, ...batch2.body.audio_features]
           }
         }
-      } else {
-        audioFeatures = await spotifyApi.getAudioFeaturesForTracks(trackIds)
       }
+      return await api.getAudioFeaturesForTracks(trackIds)
+    }
+
+    try {
+      audioFeatures = await fetchAudioFeatures(accessToken)
       console.log('Audio features fetched successfully')
     } catch (spotifyError: any) {
       console.error('Spotify API error (getAudioFeaturesForTracks):', spotifyError)
@@ -177,17 +185,35 @@ export async function GET(request: NextRequest) {
         statusCode: spotifyError?.statusCode,
         body: spotifyError?.body
       })
-      
-      // Return 403 if it's a permissions error, otherwise 500
-      const statusCode = spotifyError?.statusCode === 403 ? 403 : 500
-      return NextResponse.json(
-        { 
-          error: statusCode === 403 
-            ? 'Spotify permissions required. Please logout and login again.' 
-            : 'Failed to analyze tracks from Spotify' 
-        },
-        { status: statusCode }
-      )
+
+      // Attempt a single token refresh and retry on 401/403
+      if ((spotifyError?.statusCode === 401 || spotifyError?.statusCode === 403) && tokens?.refreshToken) {
+        try {
+          console.log('Refreshing Spotify token after audio feature failure...')
+          const refreshed = await refreshSpotifyToken(tokens.refreshToken)
+          accessToken = refreshed.accessToken
+          await saveSpotifyTokens(user.id, refreshed.accessToken, tokens.refreshToken, refreshed.expiresIn)
+          audioFeatures = await fetchAudioFeatures(accessToken)
+          console.log('Audio features fetched successfully after refresh')
+        } catch (refreshError: any) {
+          console.error('Refresh + retry failed:', refreshError)
+          const statusCode = spotifyError?.statusCode === 403 ? 403 : 401
+          return NextResponse.json(
+            { error: 'Spotify permissions required. Please reconnect.' },
+            { status: statusCode }
+          )
+        }
+      } else {
+        const statusCode = spotifyError?.statusCode === 403 ? 403 : 500
+        return NextResponse.json(
+          { 
+            error: statusCode === 403 
+              ? 'Spotify permissions required. Please reconnect.' 
+              : 'Failed to analyze tracks from Spotify' 
+          },
+          { status: statusCode }
+        )
+      }
     }
 
     // Calculate personality metrics

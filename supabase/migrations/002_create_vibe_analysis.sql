@@ -27,9 +27,6 @@ CREATE TABLE vibe_analysis (
 CREATE INDEX idx_vibe_analysis_user_id ON vibe_analysis(user_id);
 CREATE INDEX idx_vibe_analysis_analyzed_at ON vibe_analysis(analyzed_at DESC);
 
--- Unique constraint: one analysis per user (latest overwrites)
-CREATE UNIQUE INDEX idx_vibe_analysis_user_latest ON vibe_analysis(user_id, analyzed_at DESC);
-
 -- Enable Row Level Security
 ALTER TABLE vibe_analysis ENABLE ROW LEVEL SECURITY;
 

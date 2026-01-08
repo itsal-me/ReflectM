@@ -90,15 +90,36 @@ export function DashboardClient({
             redirect_uri: redirectUri,
             scope: scopes,
             show_dialog: "true",
+            // Add timestamp to force new auth flow and bypass Spotify's permission cache
+            state: Date.now().toString(),
         });
 
         window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
     };
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
-        toast.success("Logged out successfully");
-        router.push("/");
+        try {
+            // Call server-side logout API to clear all cookies and tokens
+            const response = await fetch("/api/logout", {
+                method: "POST",
+            });
+
+            if (!response.ok) {
+                throw new Error("Logout failed");
+            }
+
+            // Also clear client-side session
+            await supabase.auth.signOut();
+
+            toast.success("Logged out successfully");
+            router.push("/");
+        } catch (error) {
+            console.error("Logout error:", error);
+            // Still try to sign out client-side even if API fails
+            await supabase.auth.signOut();
+            toast.error("Logout completed, but some data may remain cached");
+            router.push("/");
+        }
     };
 
     const handleGenerate = async () => {
@@ -186,8 +207,8 @@ export function DashboardClient({
                 if (response.status === 403 || response.status === 401) {
                     setShowSessionExpired(true);
                     toast.error(
-                        "Your Spotify session has expired. Please logout and login again to grant updated permissions.",
-                        { duration: 6000 }
+                        "Spotify permission denied. Go to spotify.com/account/apps, remove ReflectM access, then logout and login again.",
+                        { duration: 10000 }
                     );
                     throw new Error("Spotify permissions expired");
                 }
@@ -239,22 +260,31 @@ export function DashboardClient({
                                 </div>
                                 <div>
                                     <p className="text-white font-semibold text-sm md:text-base">
-                                        🔄 Spotify Session Expired
+                                        🔄 Spotify Permissions Required
                                     </p>
                                     <p className="text-white/80 text-xs md:text-sm">
-                                        Your permissions need to be updated.
-                                        Please logout and login again to
-                                        continue.
+                                        Reconnect to Spotify to grant updated
+                                        permissions, or logout and login again.
                                     </p>
                                 </div>
                             </div>
-                            <Button
-                                onClick={handleLogout}
-                                className="bg-red-500 hover:bg-red-600 text-white font-semibold whitespace-nowrap w-full sm:w-auto"
-                            >
-                                <LogOut className="w-4 h-4 mr-2" />
-                                Logout Now
-                            </Button>
+                            <div className="flex gap-2 w-full sm:w-auto">
+                                <Button
+                                    onClick={handleConnectSpotify}
+                                    className="bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold whitespace-nowrap flex-1 sm:flex-initial"
+                                >
+                                    <Music className="w-4 h-4 mr-2" />
+                                    Reconnect Spotify
+                                </Button>
+                                <Button
+                                    onClick={handleLogout}
+                                    variant="outline"
+                                    className="bg-zinc-900/50 hover:bg-red-500/20 text-white border-red-500/50 hover:border-red-500 font-semibold whitespace-nowrap flex-1 sm:flex-initial"
+                                >
+                                    <LogOut className="w-4 h-4 mr-2" />
+                                    Logout
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 )}
