@@ -64,8 +64,8 @@ export async function GET(request: NextRequest) {
     const spotifyProfile = await spotifyProfileResponse.json()
     console.log('Spotify profile:', spotifyProfile.email, 'ID:', spotifyProfile.id)
 
-    // Create response FIRST - this is the response we'll return with cookies
-    const response = NextResponse.redirect(new URL('/connecting', request.url))
+    // Create response - we'll set cookies on it
+    let response = NextResponse.redirect(new URL('/connecting', request.url))
     
     // Create supabase client that writes cookies to our response
     const supabase = createServerClient(
@@ -77,17 +77,15 @@ export async function GET(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            console.log('Setting cookies:', cookiesToSet.map(c => ({ name: c.name, options: c.options })))
-            cookiesToSet.forEach(({ name, value, options }) => {
-              // Ensure cookies work across localhost/127.0.0.1
-              response.cookies.set(name, value, {
-                ...options,
-                path: '/',
-                sameSite: 'lax',
-                secure: process.env.NODE_ENV === 'production',
-                httpOnly: true,
-              })
-            })
+            console.log('Setting cookies:', cookiesToSet.map(c => ({ name: c.name, hasValue: !!c.value })))
+            // Set on request for reading back
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            // Create new response with updated request
+            response = NextResponse.redirect(new URL('/connecting', request.url))
+            // Set all cookies on the response
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            )
           },
         },
       }

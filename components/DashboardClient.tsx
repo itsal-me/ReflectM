@@ -248,49 +248,30 @@ export function DashboardClient({
                 {/* Session Expiry Warning Banner */}
                 {showSessionExpired && (
                     <div className="max-w-6xl mx-auto mb-4 bg-gradient-to-r from-red-500/20 via-orange-500/20 to-red-500/20 backdrop-blur-xl border-2 border-red-500/50 rounded-xl p-4 shadow-lg shadow-red-500/20">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-red-500/30 flex items-center justify-center border border-red-500/50 flex-shrink-0">
-                                    <svg
-                                        className="w-5 h-5 text-red-300"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                                        />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p className="text-white font-semibold text-sm md:text-base">
-                                        🔄 Spotify Permissions Required
-                                    </p>
-                                    <p className="text-white/80 text-xs md:text-sm">
-                                        Reconnect to Spotify to grant updated
-                                        permissions, or logout and login again.
-                                    </p>
-                                </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-red-500/30 flex items-center justify-center border border-red-500/50 flex-shrink-0">
+                                <svg
+                                    className="w-5 h-5 text-red-300"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                    />
+                                </svg>
                             </div>
-                            <div className="flex gap-2 w-full sm:w-auto">
-                                <Button
-                                    onClick={handleConnectSpotify}
-                                    className="bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold whitespace-nowrap flex-1 sm:flex-initial"
-                                >
-                                    <Music className="w-4 h-4 mr-2" />
-                                    Reconnect Spotify
-                                </Button>
-                                <Button
-                                    onClick={handleLogout}
-                                    variant="outline"
-                                    className="bg-zinc-900/50 hover:bg-red-500/20 text-white border-red-500/50 hover:border-red-500 font-semibold whitespace-nowrap flex-1 sm:flex-initial"
-                                >
-                                    <LogOut className="w-4 h-4 mr-2" />
-                                    Logout
-                                </Button>
+                            <div>
+                                <p className="text-white font-semibold text-sm md:text-base">
+                                    🔄 Spotify Connection Required
+                                </p>
+                                <p className="text-white/80 text-xs md:text-sm">
+                                    Please connect or reconnect your Spotify
+                                    account to continue using ReflectM features.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -300,27 +281,36 @@ export function DashboardClient({
                     {/* Header with enhanced contrast and user info */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 p-6 bg-gradient-to-br from-zinc-900/80 to-black/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl shadow-2xl">
                         <div className="flex items-center gap-4">
-                            <div className="inline-flex items-center justify-center gap-2 mb-4">
-                                <Music className="w-8 h-8 text-[#1DB954] mr-2" />
+                            <div className="inline-flex items-center justify-center gap-2">
+                                <Music className="w-8 h-8 text-[#1DB954]" />
                             </div>
                             <div>
                                 <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
                                     ReflectM
                                 </h1>
-                                <p className="text-gray-300 text-sm font-medium">
+                                <p className="text-gray-200 text-base font-semibold mt-1">
                                     Welcome,{" "}
-                                    {user.email?.split("@")[0] || "User"}
+                                    {user.user_metadata?.display_name ||
+                                        user.email?.split("@")[0] ||
+                                        "User"}
+                                    !
+                                </p>
+                                <p className="text-gray-400 text-xs font-mono mt-0.5 tracking-wide">
+                                    {user.email}
                                 </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            {!spotifyConnected && (
+                            {(!spotifyConnected || showSessionExpired) && (
                                 <Button
                                     onClick={handleConnectSpotify}
                                     className="bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold shadow-lg hover:shadow-green-500/30"
                                 >
                                     <Music className="w-4 h-4 mr-2" />
-                                    Connect Spotify
+                                    {spotifyConnected
+                                        ? "Reconnect"
+                                        : "Connect"}{" "}
+                                    Spotify
                                 </Button>
                             )}
                             <Button
