@@ -167,10 +167,13 @@ export function DashboardClient({
         }
     };
 
-    const loadTopTracks = async () => {
+    const loadTopTracks = async (forceRefresh = false) => {
         setLoadingTracks(true);
         try {
-            const response = await fetch("/api/top-tracks");
+            const url = forceRefresh
+                ? "/api/top-tracks?refresh=true"
+                : "/api/top-tracks";
+            const response = await fetch(url);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 console.error(
@@ -632,7 +635,7 @@ export function DashboardClient({
                                     {/* Reanalyze Button */}
                                     <div className="flex justify-end">
                                         <Button
-                                            onClick={loadTopTracks}
+                                            onClick={() => loadTopTracks(true)}
                                             disabled={loadingTracks}
                                             variant="outline"
                                             className="text-white bg-zinc-900/50 border-blue-500/50 hover:bg-blue-500/20 hover:border-blue-500 font-semibold"

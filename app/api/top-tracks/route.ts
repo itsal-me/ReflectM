@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createSpotifyApi } from '@/lib/spotify/client'
 import { getSpotifyTokens, refreshSpotifyToken, saveSpotifyTokens } from '@/lib/spotify/auth'
+import { getLatestVibeAnalysis, saveVibeAnalysis } from '@/lib/db/vibe'
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,6 +19,42 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('Fetching top tracks for user:', user.id)
+    
+    // Check if we should force refresh (query param)
+    const searchParams = request.nextUrl.searchParams
+    const forceRefresh = searchParams.get('refresh') === 'true'
+    
+    // If not forcing refresh, check for existing analysis (less than 24 hours old)
+    if (!forceRefresh) {
+      const existingAnalysis = await getLatestVibeAnalysis(user.id)
+      if (existingAnalysis) {
+        const analyzedAt = new Date(existingAnalysis.analyzed_at)
+        const hoursSinceAnalysis = (Date.now() - analyzedAt.getTime()) / (1000 * 60 * 60)
+        
+        if (hoursSinceAnalysis < 24) {
+          console.log('Returning cached vibe analysis from', hoursSinceAnalysis.toFixed(1), 'hours ago')
+          return NextResponse.json({
+            tracks: existingAnalysis.tracks,
+            personality: {
+              type: existingAnalysis.personality_type,
+              traits: existingAnalysis.personality_traits,
+              description: existingAnalysis.personality_description,
+            },
+            metrics: {
+              valence: existingAnalysis.valence,
+              energy: existingAnalysis.energy,
+              danceability: existingAnalysis.danceability,
+              acousticness: existingAnalysis.acousticness,
+              instrumentalness: existingAnalysis.instrumentalness,
+            },
+            cached: true,
+            analyzed_at: existingAnalysis.analyzed_at,
+          })
+        }
+      }
+    }
+    
+    console.log('Performing fresh analysis...')
 
     // Get Spotify tokens
     const tokens = await getSpotifyTokens(user.id)
@@ -187,16 +224,39 @@ export async function GET(request: NextRequest) {
       uri: track.uri,
     }))
 
+    const metrics = {
+      valence: Math.round(avgValence * 100),
+      energy: Math.round(avgEnergy * 100),
+      danceability: Math.round(avgDanceability * 100),
+      acousticness: Math.round(avgAcousticness * 100),
+      instrumentalness: Math.round(avgInstrumentalness * 100),
+    }
+
+    // Save the analysis to database
+    try {
+      await saveVibeAnalysis({
+        user_id: user.id,
+        personality_type: personality.type,
+        personality_traits: personality.traits,
+        personality_description: personality.description,
+        valence: metrics.valence,
+        energy: metrics.energy,
+        danceability: metrics.danceability,
+        acousticness: metrics.acousticness,
+        instrumentalness: metrics.instrumentalness,
+        tracks: tracks,
+      })
+      console.log('Vibe analysis saved to database')
+    } catch (dbError) {
+      console.error('Failed to save vibe analysis:', dbError)
+      // Don't fail the request if database save fails
+    }
+
     return NextResponse.json({
       tracks,
       personality,
-      metrics: {
-        valence: Math.round(avgValence * 100),
-        energy: Math.round(avgEnergy * 100),
-        danceability: Math.round(avgDanceability * 100),
-        acousticness: Math.round(avgAcousticness * 100),
-        instrumentalness: Math.round(avgInstrumentalness * 100),
-      },
+      metrics,
+      cached: false,
     })
   } catch (error: any) {
     console.error('Top tracks error:', error)
