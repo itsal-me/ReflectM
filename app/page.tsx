@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -17,7 +17,7 @@ import {
 
 import Logo from "@/logo.png";
 
-export default function Home() {
+function HomeContent() {
     const searchParams = useSearchParams();
 
     useEffect(() => {
@@ -397,5 +397,22 @@ export default function Home() {
                 </footer>
             </div>
         </div>
+    );
+}
+
+export default function Home() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen bg-black flex items-center justify-center">
+                    <div className="text-center">
+                        <Music className="w-12 h-12 text-[#1DB954] animate-pulse mx-auto mb-4" />
+                        <p className="text-gray-400">Loading...</p>
+                    </div>
+                </div>
+            }
+        >
+            <HomeContent />
+        </Suspense>
     );
 }

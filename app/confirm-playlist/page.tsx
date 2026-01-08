@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Music, ArrowLeft, Check, Loader2 } from "lucide-react";
@@ -29,7 +29,7 @@ interface SpotifyTrackInfo {
     uri: string;
 }
 
-export default function ConfirmPlaylistPage() {
+function ConfirmPlaylistContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const [playlistData, setPlaylistData] = useState<PlaylistData | null>(null);
@@ -234,5 +234,22 @@ export default function ConfirmPlaylistPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function ConfirmPlaylistPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen bg-black flex items-center justify-center">
+                    <div className="text-center">
+                        <Loader2 className="w-12 h-12 text-[#1DB954] animate-spin mx-auto mb-4" />
+                        <p className="text-gray-400">Loading playlist...</p>
+                    </div>
+                </div>
+            }
+        >
+            <ConfirmPlaylistContent />
+        </Suspense>
     );
 }
