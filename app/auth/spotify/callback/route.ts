@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
 
     const spotifyProfile = await spotifyProfileResponse.json()
     console.log('Spotify profile:', spotifyProfile.email, 'ID:', spotifyProfile.id)
+    console.log('Spotify avatar URL:', spotifyProfile.images?.[0]?.url || 'No image available')
 
     // Create response - we'll set cookies on it
     let response = NextResponse.redirect(new URL('/connecting', request.url))
@@ -109,6 +110,22 @@ export async function GET(request: NextRequest) {
       console.log('✓ Signed in existing user')
       userId = signInData.user.id
       hasSession = true
+      
+      // Update user metadata with latest Spotify profile data
+      console.log('Updating user profile with latest Spotify data...')
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          display_name: spotifyProfile.display_name,
+          spotify_id: spotifyProfile.id,
+          avatar_url: spotifyProfile.images && spotifyProfile.images.length > 0 ? spotifyProfile.images[0].url : null,
+        },
+      })
+      
+      if (updateError) {
+        console.error('Failed to update user profile:', updateError.message)
+      } else {
+        console.log('✓ User profile updated with latest avatar')
+      }
     } else {
       // Step 2: Sign in failed, try to create new user
       console.log('Sign in failed, attempting signup...')
@@ -120,6 +137,7 @@ export async function GET(request: NextRequest) {
           data: {
             display_name: spotifyProfile.display_name,
             spotify_id: spotifyProfile.id,
+            avatar_url: spotifyProfile.images && spotifyProfile.images.length > 0 ? spotifyProfile.images[0].url : null,
           },
           // This tells Supabase to skip email confirmation
           emailRedirectTo: undefined,

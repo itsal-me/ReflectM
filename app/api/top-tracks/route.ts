@@ -105,7 +105,14 @@ export async function GET(request: NextRequest) {
     console.log('Validating Spotify token...')
     try {
       const me = await spotifyApi.getMe()
-      console.log('Token valid, user:', me.body.display_name || me.body.id)
+      console.log('✅ Token valid, user:', me.body.display_name || me.body.id)
+      console.log('✅ User profile data:', {
+        id: me.body.id,
+        display_name: me.body.display_name,
+        email: me.body.email,
+        country: me.body.country,
+        product: me.body.product
+      })
     } catch (tokenError: any) {
       console.error('Invalid Spotify token:', tokenError)
       console.error('Token validation error details:', {
@@ -137,7 +144,12 @@ export async function GET(request: NextRequest) {
     let topTracks
     try {
       topTracks = await fetchTopTracks(accessToken)
-      console.log('Top tracks fetched:', topTracks.body.items.length)
+      console.log('✅ Top tracks fetched successfully:', topTracks.body.items.length, 'tracks')
+      console.log('✅ Sample tracks:', topTracks.body.items.slice(0, 3).map(t => ({
+        name: t.name,
+        artist: t.artists[0]?.name,
+        id: t.id
+      })))
     } catch (spotifyError: any) {
       console.error('Spotify API error (getMyTopTracks):', spotifyError)
       console.error('Spotify error details:', {
@@ -171,130 +183,46 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch audio features for analysis (Spotify API limits to 100 tracks per request)
-    const trackIds = topTracks.body.items.map(track => track.id).filter(id => id)
-    console.log('Fetching audio features for', trackIds.length, 'tracks')
+    // Analyze based on track metadata (popularity, release dates, etc.)
+    console.log('✅ Analyzing tracks based on metadata (audio features disabled)')
     
-    if (trackIds.length === 0) {
-      console.error('No valid track IDs found')
-      return NextResponse.json(
-        { error: 'No tracks available to analyze' },
-        { status: 500 }
-      )
-    }
-    
-    let audioFeatures
-    const fetchAudioFeatures = async (tokenToUse: string) => {
-      const api = createSpotifyApi(tokenToUse)
-      if (tokenToUse !== accessToken) {
-        console.log('Retrying audio features with refreshed token')
-      }
-
-      // Batch requests if more than 50 tracks (Spotify sometimes has issues with large batches)
-      if (trackIds.length > 50) {
-        console.log('Batching audio features request...')
-        const batch1 = await api.getAudioFeaturesForTracks(trackIds.slice(0, 50))
-        const batch2 = await api.getAudioFeaturesForTracks(trackIds.slice(50))
-        return {
-          body: {
-            audio_features: [...batch1.body.audio_features, ...batch2.body.audio_features]
-          }
-        }
-      }
-      return await api.getAudioFeaturesForTracks(trackIds)
-    }
-
-    try {
-      audioFeatures = await fetchAudioFeatures(accessToken)
-      console.log('Audio features fetched successfully')
-    } catch (spotifyError: any) {
-      console.error('Spotify API error (getAudioFeaturesForTracks):', spotifyError)
-      console.error('Spotify error details:', {
-        message: spotifyError?.message,
-        statusCode: spotifyError?.statusCode,
-        body: spotifyError?.body
-      })
-
-      // Attempt a single token refresh and retry on 401/403
-      if ((spotifyError?.statusCode === 401 || spotifyError?.statusCode === 403) && tokens?.refreshToken) {
-        try {
-          console.log('Refreshing Spotify token after audio feature failure...')
-          const refreshed = await refreshSpotifyToken(tokens.refreshToken)
-          accessToken = refreshed.accessToken
-          await saveSpotifyTokens(user.id, refreshed.accessToken, tokens.refreshToken, refreshed.expiresIn)
-          audioFeatures = await fetchAudioFeatures(accessToken)
-          console.log('Audio features fetched successfully after refresh')
-        } catch (refreshError: any) {
-          console.error('Refresh + retry failed:', refreshError)
-          const statusCode = spotifyError?.statusCode === 403 ? 403 : 401
-          return NextResponse.json(
-            { error: 'Spotify permissions required. Please reconnect.' },
-            { status: statusCode }
-          )
-        }
-      } else {
-        const statusCode = spotifyError?.statusCode === 403 ? 403 : 500
-
-        if (statusCode === 403) {
-          try {
-            await clearSpotifyTokens(user.id)
-          } catch (clearErr) {
-            console.error('Failed to clear tokens after 403:', clearErr)
-          }
-        }
-
-        return NextResponse.json(
-          { 
-            error: statusCode === 403 
-              ? 'Spotify blocked the request. Please reconnect (log out, then log back in and re-authorize ReflectM).' 
-              : 'Failed to analyze tracks from Spotify' 
-          },
-          { status: statusCode }
-        )
-      }
-    }
-
-    // Calculate personality metrics
-    const features = audioFeatures.body.audio_features.filter(f => f !== null)
-    
-    const avgValence = features.reduce((sum, f) => sum + (f?.valence || 0), 0) / features.length
-    const avgEnergy = features.reduce((sum, f) => sum + (f?.energy || 0), 0) / features.length
-    const avgDanceability = features.reduce((sum, f) => sum + (f?.danceability || 0), 0) / features.length
-    const avgAcousticness = features.reduce((sum, f) => sum + (f?.acousticness || 0), 0) / features.length
-    const avgInstrumentalness = features.reduce((sum, f) => sum + (f?.instrumentalness || 0), 0) / features.length
-
-    // Personality analysis based on listening patterns
-    const personality = analyzePersonality({
-      valence: avgValence,
-      energy: avgEnergy,
-      danceability: avgDanceability,
-      acousticness: avgAcousticness,
-      instrumentalness: avgInstrumentalness,
-    })
-
-    // Get top genres
-    const genreMap = new Map<string, number>()
-    topTracks.body.items.forEach(track => {
-      track.artists.forEach(artist => {
-        // Note: artist genres not available in track object, need separate call
-      })
-    })
-
     const tracks = topTracks.body.items.map(track => ({
       name: track.name,
       artist: track.artists[0].name,
       album: track.album.name,
       image: track.album.images[0]?.url || '',
       uri: track.uri,
+      popularity: track.popularity,
     }))
 
+    // Calculate metrics based on track popularity and diversity
+    const avgPopularity = tracks.reduce((sum, t) => sum + (t.popularity || 0), 0) / tracks.length
+    const uniqueArtists = new Set(tracks.map(t => t.artist)).size
+    const uniqueAlbums = new Set(tracks.map(t => t.album)).size
+    
+    // Generate simplified metrics (0-100 scale) based on available data
     const metrics = {
-      valence: Math.round(avgValence * 100),
-      energy: Math.round(avgEnergy * 100),
-      danceability: Math.round(avgDanceability * 100),
-      acousticness: Math.round(avgAcousticness * 100),
-      instrumentalness: Math.round(avgInstrumentalness * 100),
+      popularity: Math.round(avgPopularity),
+      diversity: Math.round((uniqueArtists / tracks.length) * 100),
+      exploration: Math.round((uniqueAlbums / tracks.length) * 100),
+      consistency: Math.round(100 - ((uniqueArtists / tracks.length) * 100)),
+      trendiness: Math.round(avgPopularity * 0.9), // Slightly lower than raw popularity
     }
+
+    console.log('✅ Calculated metrics from track metadata:', metrics)
+
+    // Simple personality analysis based on listening diversity
+    const personality = analyzePersonalitySimple({
+      diversity: metrics.diversity,
+      popularity: metrics.popularity,
+      exploration: metrics.exploration,
+    })
+
+    console.log('✅ Personality analysis complete:', {
+      type: personality.type,
+      traits: personality.traits,
+      metricsPercent: metrics
+    })
 
     // Save the analysis to database
     try {
@@ -305,19 +233,20 @@ export async function GET(request: NextRequest) {
         personality_description: Array.isArray(personality.description) 
           ? personality.description.join('. ') + '.'
           : personality.description,
-        valence: metrics.valence,
-        energy: metrics.energy,
-        danceability: metrics.danceability,
-        acousticness: metrics.acousticness,
-        instrumentalness: metrics.instrumentalness,
+        valence: metrics.popularity,
+        energy: metrics.trendiness,
+        danceability: metrics.diversity,
+        acousticness: metrics.exploration,
+        instrumentalness: metrics.consistency,
         tracks: tracks,
       })
-      console.log('Vibe analysis saved to database')
+      console.log('✅ Vibe analysis saved to database successfully')
     } catch (dbError) {
-      console.error('Failed to save vibe analysis:', dbError)
+      console.error('❌ Failed to save vibe analysis:', dbError)
       // Don't fail the request if database save fails
     }
 
+    console.log('✅ Analysis complete - returning response')
     return NextResponse.json({
       tracks,
       personality,
@@ -335,6 +264,66 @@ export async function GET(request: NextRequest) {
       { error: error?.message || 'Failed to fetch top tracks' },
       { status: 500 }
     )
+  }
+}
+
+function analyzePersonalitySimple(metrics: {
+  diversity: number
+  popularity: number
+  exploration: number
+}) {
+  const traits: string[] = []
+  const description: string[] = []
+
+  // Diversity analysis
+  if (metrics.diversity > 70) {
+    traits.push('Eclectic Explorer')
+    description.push('You love discovering music from many different artists')
+  } else if (metrics.diversity < 40) {
+    traits.push('Loyal Fan')
+    description.push('You stick with your favorite artists and know their work deeply')
+  } else {
+    traits.push('Balanced Listener')
+    description.push('You enjoy a healthy mix of favorites and new discoveries')
+  }
+
+  // Popularity analysis
+  if (metrics.popularity > 70) {
+    traits.push('Mainstream Enthusiast')
+    description.push('You enjoy popular hits and trending music')
+  } else if (metrics.popularity < 40) {
+    traits.push('Underground Connoisseur')
+    description.push('You appreciate lesser-known gems and indie artists')
+  } else {
+    traits.push('Diverse Taste')
+    description.push('You blend mainstream hits with hidden treasures')
+  }
+
+  // Exploration analysis
+  if (metrics.exploration > 70) {
+    traits.push('Album Hopper')
+    description.push('You love exploring full albums and diverse discographies')
+  } else if (metrics.exploration < 40) {
+    traits.push('Album Loyalist')
+    description.push('You find albums you love and revisit them often')
+  }
+
+  // Overall personality type
+  let type = 'The Balanced Curator'
+  if (metrics.diversity > 70 && metrics.exploration > 70) {
+    type = 'The Musical Explorer'
+  } else if (metrics.diversity < 40 && metrics.popularity > 70) {
+    type = 'The Superfan'
+  } else if (metrics.diversity > 60 && metrics.popularity < 50) {
+    type = 'The Indie Adventurer'
+  } else if (metrics.popularity > 70) {
+    type = 'The Chart Topper'
+  }
+
+  return {
+    type,
+    traits,
+    description,
   }
 }
 

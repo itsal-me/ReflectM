@@ -66,13 +66,24 @@ export function DashboardClient({
     const router = useRouter();
     const supabase = createClient();
 
-    const handleConnectSpotify = () => {
+    const handleConnectSpotify = async () => {
         const clientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
         const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI;
 
         if (!clientId || !redirectUri) {
             toast.error("Spotify credentials not configured");
             return;
+        }
+
+        // Clear stored Spotify tokens before reconnecting to force fresh auth
+        try {
+            await fetch("/api/logout", {
+                method: "POST",
+            });
+            console.log("Cleared Spotify tokens before reconnect");
+        } catch (error) {
+            console.error("Failed to clear tokens:", error);
+            // Continue anyway
         }
 
         const scopes = [
@@ -82,6 +93,7 @@ export function DashboardClient({
             "user-read-private",
             "user-read-email",
             "user-read-recently-played",
+            "user-library-read",
         ].join(" ");
 
         const params = new URLSearchParams({
@@ -214,7 +226,7 @@ export function DashboardClient({
                 if (response.status === 403 || response.status === 401) {
                     setShowSessionExpired(true);
                     toast.error(
-                        "Spotify permission denied. Go to spotify.com/account/apps, remove ReflectM access, then logout and login again.",
+                        "Spotify permission denied. Logout and login again.",
                         { duration: 10000 }
                     );
                     throw new Error("Spotify permissions expired");
@@ -278,49 +290,117 @@ export function DashboardClient({
                 )}
 
                 <div className="max-w-6xl mx-auto">
-                    {/* Header with enhanced contrast and user info */}
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 p-6 bg-gradient-to-br from-zinc-900/80 to-black/50 backdrop-blur-xl border border-zinc-800/50 rounded-2xl shadow-2xl">
-                        <div className="flex items-center gap-4">
-                            <div className="inline-flex items-center justify-center gap-2">
-                                <Music className="w-8 h-8 text-[#1DB954]" />
+                    {/* Enhanced Profile Info Section */}
+                    <div className="relative group mb-8">
+                        <div className="absolute -inset-1 bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-cyan-500/20 rounded-[1.5rem] blur-xl opacity-75 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 p-8 bg-gradient-to-br from-zinc-900/95 to-black/90 backdrop-blur-2xl border border-zinc-700/70 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.6)]">
+                            <div className="flex items-start gap-6 flex-1">
+                                {/* Profile Image or Icon */}
+                                {user.user_metadata?.avatar_url ? (
+                                    <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-zinc-700 ring-2 ring-zinc-800 shadow-xl">
+                                        <img
+                                            src={user.user_metadata.avatar_url}
+                                            alt={
+                                                user.user_metadata
+                                                    ?.display_name || "Profile"
+                                            }
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                console.log(
+                                                    "Image load error, falling back to icon"
+                                                );
+                                                e.currentTarget.style.display =
+                                                    "none";
+                                                if (
+                                                    e.currentTarget
+                                                        .parentElement
+                                                ) {
+                                                    e.currentTarget.parentElement.innerHTML =
+                                                        '<div class="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center border border-zinc-700"><svg class="w-8 h-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>';
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center border border-zinc-700">
+                                        <Music className="w-8 h-8 text-gray-400" />
+                                    </div>
+                                )}
+
+                                {/* User Info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                                        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white via-gray-100 to-white bg-clip-text text-transparent tracking-tight">
+                                            ReflectM
+                                        </h1>
+                                        {spotifyConnected &&
+                                            !showSessionExpired && (
+                                                <div className="px-2.5 py-1 bg-gradient-to-r from-[#1DB954]/20 to-emerald-500/20 border border-[#1DB954]/40 rounded-full flex items-center gap-1.5 shrink-0">
+                                                    <div className="w-2 h-2 rounded-full bg-[#1DB954] animate-pulse"></div>
+                                                    <span className="text-xs font-semibold text-[#1DB954] whitespace-nowrap">
+                                                        Connected
+                                                    </span>
+                                                </div>
+                                            )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <p className="text-xl font-bold text-white">
+                                            Welcome back,{" "}
+                                            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+                                                {user.user_metadata
+                                                    ?.display_name ||
+                                                    user.email?.split("@")[0] ||
+                                                    "User"}
+                                            </span>
+                                            !
+                                        </p>
+
+                                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-purple-500/10 border border-purple-500/30 rounded-xl backdrop-blur-sm shadow-lg hover:shadow-purple-500/20 transition-all">
+                                            <svg
+                                                className="w-4 h-4 text-purple-400"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                                />
+                                            </svg>
+                                            <span className="text-sm text-gray-300 font-medium">
+                                                {user.email}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
-                                    ReflectM
-                                </h1>
-                                <p className="text-gray-200 text-base font-semibold mt-1">
-                                    Welcome,{" "}
-                                    {user.user_metadata?.display_name ||
-                                        user.email?.split("@")[0] ||
-                                        "User"}
-                                    !
-                                </p>
-                                <p className="text-gray-400 text-xs font-mono mt-0.5 tracking-wide">
-                                    {user.email}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {(!spotifyConnected || showSessionExpired) && (
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-3 lg:flex-col lg:items-stretch w-full lg:w-auto">
+                                {(!spotifyConnected || showSessionExpired) && (
+                                    <Button
+                                        onClick={handleConnectSpotify}
+                                        className="flex-1 lg:flex-initial bg-gradient-to-r from-[#1DB954] to-emerald-500 hover:from-[#1ed760] hover:to-emerald-400 text-black font-bold shadow-xl hover:shadow-green-500/40 transition-all duration-300 border border-[#1DB954]/20"
+                                    >
+                                        <Music className="w-4 h-4 mr-2" />
+                                        {spotifyConnected
+                                            ? "Reconnect"
+                                            : "Connect"}{" "}
+                                        Spotify
+                                    </Button>
+                                )}
                                 <Button
-                                    onClick={handleConnectSpotify}
-                                    className="bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold shadow-lg hover:shadow-green-500/30"
+                                    onClick={handleLogout}
+                                    variant="outline"
+                                    className="flex-1 lg:flex-initial text-white bg-zinc-900/50 hover:bg-red-500/20 border-zinc-700 hover:border-red-500/50 transition-all shadow-lg font-semibold"
                                 >
-                                    <Music className="w-4 h-4 mr-2" />
-                                    {spotifyConnected
-                                        ? "Reconnect"
-                                        : "Connect"}{" "}
-                                    Spotify
+                                    <LogOut className="w-4 h-4 mr-2" />
+                                    Logout
                                 </Button>
-                            )}
-                            <Button
-                                onClick={handleLogout}
-                                variant="outline"
-                                className="text-white bg-zinc-900/50 hover:bg-[#1DB954] hover:text-black border-zinc-700 hover:border-[#1DB954] transition-all shadow-lg hover:shadow-green-500/30 font-medium"
-                            >
-                                <LogOut className="w-4 h-4 mr-2" />
-                                Logout
-                            </Button>
+                            </div>
                         </div>
                     </div>
 
@@ -598,7 +678,7 @@ export function DashboardClient({
                                             className="relative group"
                                         >
                                             <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-300"></div>
-                                            <Card className="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20 hover:bg-white/[0.12] hover:border-white/30 transition-all cursor-pointer">
+                                            <Card className="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20 hover:bg-white/[0.12] hover:border-white/30 transition-all">
                                                 <CardHeader>
                                                     <div className="flex items-start gap-4">
                                                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/10 flex items-center justify-center border border-purple-500/20 shrink-0">
@@ -610,27 +690,44 @@ export function DashboardClient({
                                                                     reflection.playlist_name
                                                                 }
                                                             </CardTitle>
-                                                            <CardDescription className="text-white/70 italic text-sm leading-relaxed">
+                                                            <CardDescription className="text-white/70 italic text-sm leading-relaxed mb-3">
                                                                 "
                                                                 {
                                                                     reflection.narrative
                                                                 }
                                                                 "
                                                             </CardDescription>
-                                                            <div className="flex items-center gap-2 mt-3">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div>
-                                                                <p className="text-white/50 text-xs">
-                                                                    {new Date(
-                                                                        reflection.created_at
-                                                                    ).toLocaleDateString(
-                                                                        "en-US",
-                                                                        {
-                                                                            month: "long",
-                                                                            day: "numeric",
-                                                                            year: "numeric",
+                                                            <div className="flex items-center justify-between gap-3 mt-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div>
+                                                                    <p className="text-white/50 text-xs">
+                                                                        {new Date(
+                                                                            reflection.created_at
+                                                                        ).toLocaleDateString(
+                                                                            "en-US",
+                                                                            {
+                                                                                month: "long",
+                                                                                day: "numeric",
+                                                                                year: "numeric",
+                                                                            }
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                                {reflection.spotify_playlist_url && (
+                                                                    <Button
+                                                                        onClick={() =>
+                                                                            window.open(
+                                                                                reflection.spotify_playlist_url,
+                                                                                "_blank"
+                                                                            )
                                                                         }
-                                                                    )}
-                                                                </p>
+                                                                        className="bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold text-xs shadow-md hover:shadow-green-500/30 transition-all h-8 px-3"
+                                                                    >
+                                                                        <Music className="w-3 h-3 mr-1" />
+                                                                        Open in
+                                                                        Spotify
+                                                                    </Button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -731,7 +828,7 @@ export function DashboardClient({
                                     <Card className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20">
                                         <CardHeader>
                                             <CardTitle className="text-white">
-                                                Your Listening Patterns
+                                                Your Listening Insights
                                             </CardTitle>
                                             <CardDescription className="text-white/70">
                                                 Based on your top tracks from
@@ -745,26 +842,46 @@ export function DashboardClient({
                                                 ([key, value]: [
                                                     string,
                                                     any
-                                                ]) => (
-                                                    <div key={key}>
-                                                        <div className="flex justify-between mb-2">
-                                                            <span className="text-white/80 capitalize">
-                                                                {key}
-                                                            </span>
-                                                            <span className="text-[#1DB954] font-bold">
-                                                                {value}%
-                                                            </span>
+                                                ]) => {
+                                                    const metricLabels: Record<
+                                                        string,
+                                                        string
+                                                    > = {
+                                                        popularity:
+                                                            "Popularity",
+                                                        diversity:
+                                                            "Artist Diversity",
+                                                        exploration:
+                                                            "Album Exploration",
+                                                        consistency:
+                                                            "Listening Consistency",
+                                                        trendiness:
+                                                            "Trend Awareness",
+                                                    };
+
+                                                    return (
+                                                        <div key={key}>
+                                                            <div className="flex justify-between mb-2">
+                                                                <span className="text-white/80">
+                                                                    {metricLabels[
+                                                                        key
+                                                                    ] || key}
+                                                                </span>
+                                                                <span className="text-[#1DB954] font-bold">
+                                                                    {value}%
+                                                                </span>
+                                                            </div>
+                                                            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                                                <div
+                                                                    className="h-full bg-gradient-to-r from-[#1DB954] to-[#1ed760] transition-all duration-500"
+                                                                    style={{
+                                                                        width: `${value}%`,
+                                                                    }}
+                                                                ></div>
+                                                            </div>
                                                         </div>
-                                                        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                                                            <div
-                                                                className="h-full bg-gradient-to-r from-[#1DB954] to-[#1ed760] transition-all duration-500"
-                                                                style={{
-                                                                    width: `${value}%`,
-                                                                }}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-                                                )
+                                                    );
+                                                }
                                             )}
                                         </CardContent>
                                     </Card>
