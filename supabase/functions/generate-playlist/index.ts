@@ -70,15 +70,16 @@ serve(async (req) => {
               role: 'system',
               content: `You are ReflectM, an AI that creates personalized Spotify playlists with cinematic narratives.
 
-CRITICAL RULES:
-1. Return ONLY valid JSON. No markdown, no code blocks, no extra text.
-2. Create exactly 15-20 songs for the playlist
-3. Each song must be a real, existing track (verify artist and song name accuracy)
-4. The narrative must be EXACTLY 2 sentences that paint a movie scene matching the playlist's mood
-5. Valence: 0-1 scale (0=sad/negative, 1=happy/positive)
-6. Energy: 0-1 scale (0=calm/acoustic, 1=intense/energetic)
+ABSOLUTE REQUIREMENTS - FAILURE TO COMPLY WILL RESULT IN ERROR:
+1. You MUST return ONLY valid JSON. Absolutely NO markdown, NO code blocks (no \`\`\`json), NO explanatory text before or after
+2. Start your response with { and end with }
+3. Create exactly 15-20 songs for the playlist
+4. Each song must be a real, existing track (verify artist and song name accuracy)
+5. The narrative must be EXACTLY 2 sentences that paint a movie scene matching the playlist's mood
+6. Valence: 0-1 scale (0=sad/negative, 1=happy/positive)
+7. Energy: 0-1 scale (0=calm/acoustic, 1=intense/energetic)
 
-JSON FORMAT (return exactly this structure):
+EXACT JSON FORMAT - Copy this structure precisely:
 {
   "playlist_name": "A creative 2-4 word playlist name",
   "tracks": [
@@ -88,7 +89,10 @@ JSON FORMAT (return exactly this structure):
   "narrative": "First sentence sets the scene. Second sentence describes what happens next.",
   "valence": 0.7,
   "energy": 0.6
-}`,
+}
+
+EXAMPLE VALID RESPONSE:
+{"playlist_name":"Midnight Drive","tracks":[{"song":"Blinding Lights","artist":"The Weeknd"}],"narrative":"City lights blur past as you speed through empty streets at 2 AM. The night holds infinite possibilities.","valence":0.7,"energy":0.8}`,
             },
             {
               role: 'user',
@@ -97,6 +101,7 @@ JSON FORMAT (return exactly this structure):
           ],
           temperature: 0.8,
           max_tokens: 2000,
+          response_format: { type: 'json_object' },
         }),
       }
     )
@@ -110,46 +115,95 @@ JSON FORMAT (return exactly this structure):
     const openRouterData: any = await openRouterResponse.json()
     const aiResponseText: string = openRouterData.choices[0].message.content
 
-    console.log('Raw AI response:', aiResponseText.substring(0, 200))
+    console.log('Raw AI response:', aiResponseText.substring(0, 300))
 
-    // Parse AI response (handle potential markdown wrapping and extra text)
+    // Multi-stage JSON parsing with fallback strategies
     let cleanedResponse = aiResponseText.trim()
     
-    // Remove markdown code blocks if present
+    // Stage 1: Remove markdown code blocks
     if (cleanedResponse.startsWith('```json')) {
       cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '')
     } else if (cleanedResponse.startsWith('```')) {
       cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '')
     }
     
-    // Find JSON object boundaries if there's extra text
+    // Stage 2: Find JSON object boundaries
     const jsonStart = cleanedResponse.indexOf('{')
     const jsonEnd = cleanedResponse.lastIndexOf('}') + 1
     if (jsonStart !== -1 && jsonEnd > jsonStart) {
       cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd)
     }
     
-    console.log('Cleaned response:', cleanedResponse.substring(0, 200))
+    // Stage 3: Remove control characters and fix common issues
+    cleanedResponse = cleanedResponse
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+      .replace(/,\s*([}\]])/g, '$1') // Remove trailing commas
+      .trim()
+    
+    console.log('Cleaned response (first 300 chars):', cleanedResponse.substring(0, 300))
 
     let aiResponse: AIResponse
     try {
       aiResponse = JSON.parse(cleanedResponse)
     } catch (parseError) {
       console.error('JSON parse error:', parseError)
-      console.error('Failed to parse:', cleanedResponse)
-      throw new Error('AI returned invalid JSON format. Please try again.')
+      console.error('Failed response (first 500 chars):', cleanedResponse.substring(0, 500))
+      
+      // Stage 4: Try regex extraction as last resort
+      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        try {
+          aiResponse = JSON.parse(jsonMatch[0])
+          console.log('✓ Recovered JSON using regex fallback')
+        } catch (fallbackError) {
+          throw new Error('AI returned invalid JSON format after all recovery attempts. Please try again.')
+        }
+      } else {
+        throw new Error('AI returned invalid JSON format. No valid JSON object found. Please try again.')
+      }
     }
 
-    // Validate response structure
-    if (
-      !aiResponse.playlist_name ||
-      !Array.isArray(aiResponse.tracks) ||
-      !aiResponse.narrative ||
-      typeof aiResponse.valence !== 'number' ||
-      typeof aiResponse.energy !== 'number'
-    ) {
-      throw new Error('Invalid AI response structure')
+    // Strict validation with detailed error messages
+    const validationErrors: string[] = []
+    
+    if (!aiResponse.playlist_name || typeof aiResponse.playlist_name !== 'string') {
+      validationErrors.push('Missing or invalid playlist_name')
     }
+    
+    if (!Array.isArray(aiResponse.tracks)) {
+      validationErrors.push('Missing or invalid tracks array')
+    } else if (aiResponse.tracks.length === 0) {
+      validationErrors.push('Tracks array is empty')
+    } else {
+      aiResponse.tracks.forEach((track, index) => {
+        if (!track.song || typeof track.song !== 'string') {
+          validationErrors.push(`Track ${index + 1}: missing or invalid song name`)
+        }
+        if (!track.artist || typeof track.artist !== 'string') {
+          validationErrors.push(`Track ${index + 1}: missing or invalid artist name`)
+        }
+      })
+    }
+    
+    if (!aiResponse.narrative || typeof aiResponse.narrative !== 'string') {
+      validationErrors.push('Missing or invalid narrative')
+    }
+    
+    if (typeof aiResponse.valence !== 'number' || aiResponse.valence < 0 || aiResponse.valence > 1) {
+      validationErrors.push('Invalid valence (must be number between 0 and 1)')
+    }
+    
+    if (typeof aiResponse.energy !== 'number' || aiResponse.energy < 0 || aiResponse.energy > 1) {
+      validationErrors.push('Invalid energy (must be number between 0 and 1)')
+    }
+    
+    if (validationErrors.length > 0) {
+      console.error('Validation errors:', validationErrors)
+      console.error('Invalid response:', aiResponse)
+      throw new Error(`Invalid AI response: ${validationErrors.join(', ')}`)
+    }
+    
+    console.log('✓ AI response validated successfully')
 
     return new Response(JSON.stringify(aiResponse), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

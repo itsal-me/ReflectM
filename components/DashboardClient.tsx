@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { DynamicAura } from "./DynamicAura";
@@ -61,10 +61,20 @@ export function DashboardClient({
     const [result, setResult] = useState<PlaylistResult | null>(null);
     const [reflections, setReflections] = useState<any[]>([]);
     const [topTracks, setTopTracks] = useState<any>(null);
+    const [vibeAnalysis, setVibeAnalysis] = useState<any>(null);
+    const [vibeHistory, setVibeHistory] = useState<any[]>([]);
     const [loadingTracks, setLoadingTracks] = useState(false);
+    const [loadingVibe, setLoadingVibe] = useState(false);
     const [showSessionExpired, setShowSessionExpired] = useState(false);
     const router = useRouter();
     const supabase = createClient();
+
+    // Load vibe analysis on mount
+    useEffect(() => {
+        if (spotifyConnected && !showSessionExpired) {
+            loadVibeAnalysis();
+        }
+    }, [spotifyConnected, showSessionExpired]);
 
     const handleConnectSpotify = async () => {
         const clientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
@@ -239,6 +249,12 @@ export function DashboardClient({
             const data = await response.json();
             console.log("Top tracks loaded:", data);
             setTopTracks(data);
+
+            // After analysis, refresh vibe data from database
+            if (forceRefresh) {
+                await loadVibeAnalysis();
+                toast.success("Vibe analysis updated!");
+            }
         } catch (error) {
             console.error("Error loading top tracks:", error);
             if (!(error as Error).message.includes("permissions expired")) {
@@ -246,6 +262,50 @@ export function DashboardClient({
             }
         } finally {
             setLoadingTracks(false);
+        }
+    };
+
+    const loadVibeAnalysis = async () => {
+        setLoadingVibe(true);
+        try {
+            // Fetch latest vibe analysis
+            const { data, error } = await supabase
+                .from("vibe_analysis")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("analyzed_at", { ascending: false })
+                .limit(1)
+                .single();
+
+            if (error) {
+                if (error.code === "PGRST116") {
+                    // No analysis yet
+                    console.log("No vibe analysis found yet");
+                    setVibeAnalysis(null);
+                } else {
+                    throw error;
+                }
+            } else {
+                console.log("✓ Loaded latest vibe analysis:", data);
+                setVibeAnalysis(data);
+            }
+
+            // Fetch analysis history (last 10)
+            const { data: historyData } = await supabase
+                .from("vibe_analysis")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("analyzed_at", { ascending: false })
+                .limit(10);
+
+            if (historyData) {
+                console.log(`✓ Loaded ${historyData.length} analysis records`);
+                setVibeHistory(historyData);
+            }
+        } catch (error) {
+            console.error("Error loading vibe analysis:", error);
+        } finally {
+            setLoadingVibe(false);
         }
     };
 
@@ -740,7 +800,7 @@ export function DashboardClient({
                         </TabsContent>
 
                         <TabsContent value="personality">
-                            {loadingTracks ? (
+                            {loadingTracks || loadingVibe ? (
                                 <div className="space-y-4">
                                     {[...Array(3)].map((_, i) => (
                                         <Card
@@ -754,7 +814,7 @@ export function DashboardClient({
                                         </Card>
                                     ))}
                                 </div>
-                            ) : topTracks ? (
+                            ) : vibeAnalysis ? (
                                 <div className="space-y-6">
                                     {/* Reanalyze Button */}
                                     <div className="flex justify-end">
@@ -788,9 +848,7 @@ export function DashboardClient({
                                                 <div>
                                                     <CardTitle className="text-white text-2xl">
                                                         {
-                                                            topTracks
-                                                                .personality
-                                                                .type
+                                                            vibeAnalysis.personality_type
                                                         }
                                                     </CardTitle>
                                                     <CardDescription className="text-white/70">
@@ -801,7 +859,7 @@ export function DashboardClient({
                                         </CardHeader>
                                         <CardContent className="space-y-4">
                                             <div className="flex flex-wrap gap-2">
-                                                {topTracks.personality.traits.map(
+                                                {vibeAnalysis.personality_traits.map(
                                                     (
                                                         trait: string,
                                                         i: number
@@ -817,8 +875,7 @@ export function DashboardClient({
                                             </div>
                                             <p className="text-white/80 text-sm leading-relaxed">
                                                 {
-                                                    topTracks.personality
-                                                        .description
+                                                    vibeAnalysis.personality_description
                                                 }
                                             </p>
                                         </CardContent>
@@ -831,58 +888,61 @@ export function DashboardClient({
                                                 Your Listening Insights
                                             </CardTitle>
                                             <CardDescription className="text-white/70">
-                                                Based on your top tracks from
-                                                the last month
+                                                Based on your vibe analysis
                                             </CardDescription>
                                         </CardHeader>
                                         <CardContent className="space-y-4">
-                                            {Object.entries(
-                                                topTracks.metrics
-                                            ).map(
-                                                ([key, value]: [
-                                                    string,
-                                                    any
-                                                ]) => {
-                                                    const metricLabels: Record<
-                                                        string,
-                                                        string
-                                                    > = {
-                                                        popularity:
-                                                            "Popularity",
-                                                        diversity:
-                                                            "Artist Diversity",
-                                                        exploration:
-                                                            "Album Exploration",
-                                                        consistency:
-                                                            "Listening Consistency",
-                                                        trendiness:
-                                                            "Trend Awareness",
-                                                    };
-
-                                                    return (
-                                                        <div key={key}>
-                                                            <div className="flex justify-between mb-2">
-                                                                <span className="text-white/80">
-                                                                    {metricLabels[
-                                                                        key
-                                                                    ] || key}
-                                                                </span>
-                                                                <span className="text-[#1DB954] font-bold">
-                                                                    {value}%
-                                                                </span>
-                                                            </div>
-                                                            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full bg-gradient-to-r from-[#1DB954] to-[#1ed760] transition-all duration-500"
-                                                                    style={{
-                                                                        width: `${value}%`,
-                                                                    }}
-                                                                ></div>
-                                                            </div>
+                                            {[
+                                                {
+                                                    key: "valence",
+                                                    label: "Positivity",
+                                                },
+                                                {
+                                                    key: "energy",
+                                                    label: "Energy",
+                                                },
+                                                {
+                                                    key: "danceability",
+                                                    label: "Danceability",
+                                                },
+                                                {
+                                                    key: "acousticness",
+                                                    label: "Acousticness",
+                                                },
+                                                {
+                                                    key: "instrumentalness",
+                                                    label: "Instrumentalness",
+                                                },
+                                            ].map(({ key, label }) => {
+                                                const value = vibeAnalysis[
+                                                    key as keyof typeof vibeAnalysis
+                                                ] as number;
+                                                return (
+                                                    <div key={key}>
+                                                        <div className="flex justify-between mb-2">
+                                                            <span className="text-white/80">
+                                                                {label}
+                                                            </span>
+                                                            <span className="text-[#1DB954] font-bold">
+                                                                {Math.round(
+                                                                    value
+                                                                )}
+                                                                %
+                                                            </span>
                                                         </div>
-                                                    );
-                                                }
-                                            )}
+                                                        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-gradient-to-r from-[#1DB954] to-[#1ed760] transition-all duration-500"
+                                                                style={{
+                                                                    width: `${Math.round(
+                                                                        value
+                                                                    )}%`,
+                                                                }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </CardContent>
                                     </Card>
 
@@ -890,16 +950,16 @@ export function DashboardClient({
                                     <Card className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20">
                                         <CardHeader>
                                             <CardTitle className="text-white">
-                                                Your Top Tracks
+                                                Analyzed Tracks
                                             </CardTitle>
                                             <CardDescription className="text-white/70">
-                                                Last 4 weeks
+                                                From your vibe analysis
                                             </CardDescription>
                                         </CardHeader>
                                         <CardContent>
                                             <ScrollArea className="h-[400px] pr-4">
                                                 <div className="space-y-3">
-                                                    {topTracks.tracks
+                                                    {vibeAnalysis.tracks
                                                         .slice(0, 20)
                                                         .map(
                                                             (
@@ -933,6 +993,115 @@ export function DashboardClient({
                                             </ScrollArea>
                                         </CardContent>
                                     </Card>
+
+                                    {/* Vibe History */}
+                                    {vibeHistory.length > 1 && (
+                                        <Card className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20">
+                                            <CardHeader>
+                                                <CardTitle className="text-white text-lg md:text-xl">
+                                                    Vibe Analysis History
+                                                </CardTitle>
+                                                <CardDescription className="text-white/70 text-sm">
+                                                    Your last 5 analyses
+                                                </CardDescription>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="space-y-2 md:space-y-3">
+                                                    {vibeHistory
+                                                        .slice(1, 6)
+                                                        .map(
+                                                            (
+                                                                analysis: any,
+                                                                index: number
+                                                            ) => (
+                                                                <div
+                                                                    key={
+                                                                        analysis.id
+                                                                    }
+                                                                    onClick={() => {
+                                                                        setVibeAnalysis(
+                                                                            analysis
+                                                                        );
+                                                                        window.scrollTo(
+                                                                            {
+                                                                                top: 0,
+                                                                                behavior:
+                                                                                    "smooth",
+                                                                            }
+                                                                        );
+                                                                    }}
+                                                                    className="group/analysis cursor-pointer p-3 md:p-4 bg-white/[0.05] hover:bg-blue-500/20 active:bg-blue-500/30 rounded-xl transition-all duration-300 border border-white/10 hover:border-blue-500/50 active:scale-[0.98]"
+                                                                >
+                                                                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                                                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/10 flex items-center justify-center border border-blue-500/30 shrink-0">
+                                                                                <UserIcon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
+                                                                            </div>
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="font-semibold text-white text-sm sm:text-base group-hover/analysis:text-blue-300 transition-colors truncate">
+                                                                                    {
+                                                                                        analysis.personality_type
+                                                                                    }
+                                                                                </div>
+                                                                                <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
+                                                                                    <span className="text-[10px] sm:text-xs text-gray-400 whitespace-nowrap">
+                                                                                        {new Date(
+                                                                                            analysis.analyzed_at
+                                                                                        ).toLocaleDateString(
+                                                                                            "en-US",
+                                                                                            {
+                                                                                                month: "short",
+                                                                                                day: "numeric",
+                                                                                                year: "numeric",
+                                                                                            }
+                                                                                        )}
+                                                                                    </span>
+                                                                                    <span className="text-[10px] sm:text-xs text-gray-500">
+                                                                                        •
+                                                                                    </span>
+                                                                                    <span className="text-[10px] sm:text-xs text-gray-400 whitespace-nowrap">
+                                                                                        {
+                                                                                            analysis
+                                                                                                .tracks
+                                                                                                .length
+                                                                                        }{" "}
+                                                                                        tracks
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex flex-wrap gap-1.5 sm:gap-2 sm:shrink-0 ml-[52px] sm:ml-0">
+                                                                            {analysis.personality_traits
+                                                                                .slice(
+                                                                                    0,
+                                                                                    2
+                                                                                )
+                                                                                .map(
+                                                                                    (
+                                                                                        trait: string,
+                                                                                        i: number
+                                                                                    ) => (
+                                                                                        <span
+                                                                                            key={
+                                                                                                i
+                                                                                            }
+                                                                                            className="px-2 sm:px-2.5 py-0.5 sm:py-1 bg-blue-500/10 border border-blue-500/30 rounded-full text-blue-300 text-[10px] sm:text-xs font-medium whitespace-nowrap"
+                                                                                        >
+                                                                                            {
+                                                                                                trait
+                                                                                            }
+                                                                                        </span>
+                                                                                    )
+                                                                                )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        )}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
                                 </div>
                             ) : (
                                 <Card className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-white/20">

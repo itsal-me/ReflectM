@@ -19,50 +19,25 @@ export interface VibeAnalysis {
 export async function saveVibeAnalysis(analysis: Omit<VibeAnalysis, 'id' | 'created_at'>) {
   const supabase = await createClient()
 
-  // Check if a record exists for this user
-  const { data: existing } = await supabase
-    .from('vibe_analysis')
-    .select('id')
-    .eq('user_id', analysis.user_id)
-    .order('analyzed_at', { ascending: false })
-    .limit(1)
-    .single()
-
+  // Always create a new record to maintain analysis history
   const payload = {
     ...analysis,
     analyzed_at: new Date().toISOString(),
   }
 
-  let data, error
-
-  if (existing) {
-    // Update existing record
-    const result = await supabase
-      .from('vibe_analysis')
-      .update(payload)
-      .eq('id', existing.id)
-      .select()
-      .single()
-    
-    data = result.data
-    error = result.error
-  } else {
-    // Insert new record
-    const result = await supabase
-      .from('vibe_analysis')
-      .insert(payload)
-      .select()
-      .single()
-    
-    data = result.data
-    error = result.error
-  }
+  // Insert new record (don't update existing ones)
+  const { data, error } = await supabase
+    .from('vibe_analysis')
+    .insert(payload)
+    .select()
+    .single()
 
   if (error) {
     console.error('Error saving vibe analysis:', error)
     throw error
   }
 
+  console.log('✓ New vibe analysis saved to database:', data.id)
   return data
 }
 
